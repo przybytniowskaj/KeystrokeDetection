@@ -6,3 +6,4 @@ matplotlib==3.9.3
 scikit-learn==1.4.2
 pandas==2.1.2
 seaborn==0.13.2
+ipykernel==6.29.5
