@@ -12,6 +12,15 @@ from pydub.silence import detect_leading_silence
 
 warnings.filterwarnings("ignore")
 
+LABEL_MAP = {
+    "apostrophe(')": 'apos',
+    '(.)': 'dot',
+    'bracketclose(])': 'bracketclose',
+    'bracketopen([)': 'bracketopen',
+    'comma(,)': 'comma',
+    'equal(=)': 'equal'
+}
+
 
 def get_middle_peaks(peaks, max_gap=5):
     if len(peaks) == 0:
@@ -87,7 +96,6 @@ def plot_energy(signal, energy, threshold, borders, sample_rate, output_dir_img,
     plt.figure(figsize=(12, 5))
     librosa.display.waveshow(energy)
     plt.axhline(y=threshold, color='r', linestyle='--', linewidth=1)
-
     plt.title(f'Energy - {len(borders)} {key}-strokes found')
     if save_plots:
         plt.savefig(os.path.join(output_dir_img, f"{dataset}_{subfolder}_{key.lower()}_energy.png"))
@@ -95,8 +103,55 @@ def plot_energy(signal, energy, threshold, borders, sample_rate, output_dir_img,
         plt.show()
     plt.close()
 
+STEPS = {
+    'Lctrl': 0.002,
+    'f': 0.003,
+    'p': 0.003,
+    'v': 0.0035,
+}
 
-def process_audio_files(audio_file, output_dir, output_dir_img, dataset, num_keystrokes=25, save_plots=False, show_plots=False):
+THRESHOLDS = {
+    'Lctrl': 0.5,
+    'f': 0.38,
+    'p': 0.3,
+    'v': 0.3,
+}
+
+KEYSTROKES_TO_SKIP = {
+    'Lctrl': [13, 21],
+    'm': [19],
+    'n': [0],
+    'o': [0],
+    'ralt': [0],
+    'u': [0, 12],
+    'p': [0, 9, 11, 12, 13, 19],
+    'f': [0],
+    '3': [13],
+    '4': [28],
+    '5': [15],
+    '6': [6],
+    'e': [0],
+    'lalt': [3],
+    'lcmd': [0],
+    'left': [0],
+    's': [2],
+    't': [14],
+    'up': [12],
+    'w': [27],
+    'y': [17],
+}
+
+LAST_STROKES_TO_SKIP = {
+    'rshift': [-1],
+    'lalt': [-1],
+    'tab': [-1],
+    '1': [-1],
+    'b': [-1],
+}
+
+
+def process_audio_files(audio_file, output_dir, output_dir_img, dataset, num_keystrokes=25, save_plots=False,
+                        show_plots=False, num_tries=300, initial_threshold=0.03, initial_step=0.006, before=10000, after=10000):
     for root, dirs, files in os.walk(audio_file):
         subfolder = os.path.basename(root)
         for file in tqdm(files, desc=f"Processing files in {subfolder}"):
@@ -104,12 +159,17 @@ def process_audio_files(audio_file, output_dir, output_dir_img, dataset, num_key
                 loc = os.path.join(root, file)
                 waveform, sample_rate = librosa.load(loc, sr=22000)
                 strokes = []
-                threshold = 0.03
-                step = 0.006
-                key = file.split('.')[0]
+                key = os.path.splitext(file)[0]
+                key = LABEL_MAP.get(key, key)
                 num_try = 0
-                while not len(strokes) == num_keystrokes and num_try < 300:
-                    strokes, energy, borders = isolator(waveform[1*sample_rate:], sample_rate, 512, 124, 10000, 10000, threshold)
+                if key in STEPS:
+                    step = STEPS[key]
+                    threshold = THRESHOLDS[key]
+                else:
+                    step = initial_step
+                    threshold = initial_threshold
+                while not len(strokes) == num_keystrokes and num_try < num_tries:
+                    strokes, energy, borders = isolator(waveform[1*sample_rate:], sample_rate, 512, 124, before, after, threshold)
                     if len(strokes) < num_keystrokes:
                         threshold -= step
                     if len(strokes) > num_keystrokes:
@@ -124,17 +184,10 @@ def process_audio_files(audio_file, output_dir, output_dir_img, dataset, num_key
                 with open(os.path.join("./Data/", f"{dataset}_tresholds.txt"), 'a') as f:
                     f.write(f"{threshold}\n")
                 for i, stroke in enumerate(strokes):
-                    if dataset == 'practical_dl':
-                        keyboard_type = 'mac'
-                        recording_type = 'zoom' if subfolder == 'zoom' else 'live'
-                    # function has been tested for practical_dl dataset only
-                    elif dataset == 'MKA':
-                        if subfolder == 'Zoom' or subfolder == 'Messenger':
-                            recording_type = 'zoom'
-                            keyboard_type = 'unknown'
-                        else:
-                            keyboard_type = subfolder
-                            recording_type = 'live'
+                    if (key in KEYSTROKES_TO_SKIP and i in KEYSTROKES_TO_SKIP[key]) or (key in LAST_STROKES_TO_SKIP and i == len(strokes) - 1):
+                        continue
+                    keyboard_type = 'mac'
+                    recording_type = 'zoom' if subfolder == 'zoom' and dataset=='practical_dl' else 'live'
                     keystroke_filename = f"{output_dir}{keyboard_type}_{recording_type}_{key.lower()}_{i}.wav"
                     torchaudio.save(keystroke_filename, stroke, sample_rate)
 
@@ -180,5 +233,6 @@ def trim_silence_in_directory(data_dir, trimmed_data_dir, min_length=400):
                 length_after = len(stripped_sound)
                 if length_before != length_after:
                     count += 1
+                # print(f"Trimmed silence from {filename} - {length_before} -> {length_after}")
                 stripped_sound.export(output_file_path, format='wav')
     return count
