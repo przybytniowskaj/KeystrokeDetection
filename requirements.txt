@@ -1,0 +1,9 @@
+torch==2.6.0+cu126
+torchaudio==2.6.0+cu126
+torchvision==0.21.0+cu126
+torchsummary==1.5.1
+matplotlib==3.9.3
+scikit-learn==1.4.2
+pandas==2.1.2
+seaborn==0.13.2
+ipykernel==6.29.5
