@@ -7,6 +7,8 @@ from torch.utils.data import Dataset
 from torchvision import transforms
 from torchaudio.transforms import TimeMasking, FrequencyMasking, MelSpectrogram, TimeStretch
 import torch.nn.functional as F
+import warnings
+warnings.filterwarnings("ignore")
 
 WAVEFORM_MEAN_LIST = [-1.196521e-5]
 WAVEFORM_STD_LIST = [0.029951086]
@@ -58,7 +60,6 @@ class RandomTimeMasking:
         self.p = p
 
     def __call__(self, spectrogram):
-        print('timemask')
         if torch.rand(1).item() < self.p:
             return self.time_mask(spectrogram).to(torch.float32)
         return spectrogram
@@ -67,18 +68,13 @@ class RandomTimeMasking:
 class RandomTimeStretch:
     def __init__(self, p=0.5, range_1=(0.8, 0.9), range_2=(1.2, 1.3)):
         self.rate_1 = torch.empty(1).uniform_(*range_1).item()
-        print(self.rate_1)
         self.rate_2 = torch.empty(1).uniform_(*range_2).item()
-        print(self.rate_2)
         self.time_stretch_1 = TimeStretch(fixed_rate=self.rate_1, n_freq=64)
         self.time_stretch_2 = TimeStretch(fixed_rate=self.rate_2, n_freq=64)
         self.p = p
 
     def __call__(self, spectrogram):
         rand_num = torch.rand(1).item()
-        print(rand_num)
-        print(self.rate_1)
-        print(self.rate_2)
         if rand_num < self.p * 0.5:
             return self.time_stretch_1(spectrogram).to(torch.float32)
         elif rand_num < self.p:
@@ -97,12 +93,12 @@ TRANSFORMS = transforms.Compose([
 AUG_TRANSFORMS = transforms.Compose([
     # transforms.Normalize(mean=WAVEFORM_MEAN, std=WAVEFORM_MEAN),
     to_mel_spectrogram,
-    RandomTimeStretch(p=0.4),
+    RandomTimeStretch(p=0.8),
     pad_spectrogram,
-    RandomFrequencyMasking(p=0.3),
-    RandomTimeMasking(time_mask_param=3, p=0.3),
-    RandomFrequencyMasking(freq_mask_param=1, p=0.4),
-    RandomTimeMasking(time_mask_param=1, p=0.4),
+    RandomFrequencyMasking(p=0.5),
+    RandomTimeMasking(time_mask_param=3, p=0.5),
+    RandomFrequencyMasking(freq_mask_param=1, p=0.6),
+    RandomTimeMasking(time_mask_param=1, p=0.6),
     # transforms.Normalize(mean=WAVEFORM_MEAN_LIST, std=WAVEFORM_MEAN_LIST),
 ])
 
@@ -111,28 +107,73 @@ def normalize_waveform(waveform, mean=WAVEFORM_MEAN, std=WAVEFORM_MEAN):
     """Normalize waveform before converting to spectrogram."""
     return (waveform - mean) / std
 
+MAP = {
+            'lctrl': 'ctrl',
+            'lcmd': 'cmd',
+            'lalt': 'alt',
+            'lshift': 'shift',
+            'ralt': 'alt',
+            'rctrl': 'ctrl',
+            'rshift': 'shift',
+            'rcmd': 'cmd',
+            'bracketclose': 'bracket',
+            'bracketopen': 'bracket'
+        }
 
 class AudioDataset(Dataset):
-    def __init__(self, root, transform=True, transform_aug=False):
+    def __init__(self, root, dataset, transform=True, transform_aug=False, special_keys=False, class_idx=None):
+        self.dataset = dataset
         self.root = root
-        # assert not ( transform and transform_aug ), 'choose only one tranformation'
-
+        self.data_root = self.root if self.dataset=='all' else os.path.join(root, dataset)
         self.transform = TRANSFORMS if transform and not transform_aug else None
         self.transform_aug = AUG_TRANSFORMS if transform_aug else None
-        self.classes = sorted(os.listdir(root))
-        self.class_to_idx = {cls_name: idx for idx, cls_name in enumerate(self.classes)}
+        self.all_classes = self.get_classes()
+        self.unmapped_classes = self.all_classes[0] if not special_keys else self.all_classes[1]
+        self.classes = self.all_classes[0] if not special_keys else self.all_classes[2]
+        if class_idx is None:
+            self.class_to_idx = {cls_name: idx for idx, cls_name in enumerate(self.classes)}
+        else:
+            self.class_to_idx = class_idx
+            self.classes = class_idx.keys()
+
         self.file_paths = self._get_file_paths()
+
+    def get_classes(self):
+        special = ['apos', 'backslash', 'bracketclose', 'bracketopen', 'caps', 'comma', 'delete',
+        'dot', 'down', 'enter', 'equal', 'esc', 'fn', 'lctrl', 'lcmd', 'lalt', 'left', 'lshift', 'ralt',
+        'rctrl', 'rshift', 'right', 'semicolon', 'slash', 'space', 'start', 'tab', 'up']
+
+        if self.dataset == 'all':
+            all_classes = []
+            for dataset in ['mka', 'practical', 'noiseless']:
+                dataset_path = os.path.join(self.root, dataset)
+                if os.path.isdir(dataset_path):
+                    all_classes.extend(os.listdir(dataset_path))
+            all_classes = list(set(all_classes))
+            classes = [cls_name for cls_name in all_classes if cls_name not in special]
+        else:
+            classes = [cls_name for cls_name in os.listdir(self.data_root) if cls_name not in special]
+            all_classes = os.listdir(self.data_root)
+
+        mapped_classes = [MAP.get(key, key) for key in all_classes]
+
+        return sorted(classes), sorted(all_classes), sorted(np.unique(mapped_classes))
 
     def _get_file_paths(self):
         paths = []
-        for cls_name in self.classes:
-            for file in os.listdir(os.path.join(self.root, cls_name)):
-                paths.append(
-                    (
-                        os.path.join(self.root, cls_name, file),
-                        cls_name,
-                    )
-                )
+        datasets = [self.dataset] if self.dataset != 'all' else [ 'mka', 'practical', 'noiseless']
+
+        for data in datasets:
+            for cls_name in self.classes:
+                folder = os.path.join(self.root, data, cls_name)
+                if os.path.isdir(folder):
+                    for file in os.listdir(os.path.join(folder)):
+                        paths.append(
+                            (
+                                os.path.join(folder, file),
+                                MAP.get(cls_name, cls_name)
+                            )
+                        )
         return paths
 
     def __len__(self):

@@ -7,41 +7,6 @@ from torch.utils.data import Dataset
 import os
 
 
-class AudioDataset(Dataset):
-    def __init__(self, root, transform=None, transform_aug=None):
-        self.root = root
-        self.transform = transform
-        self.transform_aug = transform_aug
-        self.classes = sorted(os.listdir(root))
-        self.class_to_idx = {cls_name: idx for idx, cls_name in enumerate(self.classes)}
-        self.file_paths = self._get_file_paths()
-
-    def _get_file_paths(self):
-        paths = []
-        for cls_name in self.classes:
-            for file in os.listdir(os.path.join(self.root, cls_name)):
-                paths.append(
-                    (
-                        os.path.join(self.root, cls_name, file),
-                        cls_name,
-                    )
-                )
-        return paths
-
-    def __len__(self):
-        return len(self.file_paths)
-
-    def __getitem__(self, idx):
-        file_path, cls_name = self.file_paths[idx]
-        waveform, _ = torchaudio.load(file_path)
-        if self.transform:
-            waveform = self.transform(waveform)
-        if self.transform_aug:
-            waveform = self.transform_aug(waveform)
-        label = self.class_to_idx[cls_name]
-        return waveform, label
-
-
 class Stem(nn.Sequential):
     def __init__(self, out_channels):
         super().__init__(
