@@ -1,0 +1,119 @@
+model: "swintransformer"
+model_params: default
+model_configs:
+  coatnet:
+    first:
+      "nums_blocks": [2, 2, 3, 2, 2]
+      "layer_out_channels": [64, 96, 192, 384, 768]
+    second:
+      "nums_blocks": [2, 3, 4, 5, 2]
+      "layer_out_channels": [64, 128, 256, 512, 1024]
+    third:
+      "nums_blocks": [3, 4, 6, 8, 3]
+      "layer_out_channels": [64, 128, 256, 512, 1024]
+    fourth:
+      "nums_blocks": [2, 2, 4, 4, 2]
+      "layer_out_channels": [64, 96, 192, 384, 768]
+    default:
+      "nums_blocks": [2, 2, 3, 5, 2]
+      "layer_out_channels": [64, 96, 192, 384, 768]
+  convmixer:
+    default:
+      "dim": 512
+      "depth": 12
+      "kernel_size": 7
+      "patch_size": 16
+    first:
+      "dim": 512
+      "depth": 20
+      "kernel_size": 10
+      "patch_size": 16
+  swintransformer:
+    default:
+      "patch_size": 4
+      "embed_dim": 96
+      "depths": [2, 2, 6, 2]
+      "num_heads": [3, 6, 12, 24]
+      "window_size": 4
+      "mlp_ratio": 4.0
+      "qkv_bias": true
+      "qk_scale": null
+      "ape": false
+      "patch_norm": true
+    small:
+      "patch_size": 4
+      "embed_dim": 96
+      "depths": [2, 3, 2]
+      "num_heads": [3, 8, 12]
+      "window_size": 4
+      "mlp_ratio": 4.0
+      "qkv_bias": true
+      "qk_scale": null
+      "ape": false
+      "patch_norm": true
+    smaller:
+      "patch_size": 4
+      "embed_dim": 48
+      "depths": [2, 2, 2]
+      "num_heads": [3, 6, 8]
+      "window_size": 2
+      "mlp_ratio": 4.0
+      "qkv_bias": false
+      "ape": false
+      "patch_norm": true
+
+optimizer: adam
+lr: 0.0001
+weight_decay: 0
+optimizer_configs:
+  adam:
+    lr: ${lr}
+    weight_decay: ${weight_decay}
+  sgd:
+    lr: ${lr}
+    momentum: 0.9
+    weight_decay: ${weight_decay}
+  rmsprop:
+    lr: ${lr}
+    alpha: 0.99
+    eps: 1e-08
+    weight_decay: ${weight_decay}
+
+scheduler: StepLR
+scheduler_configs:
+  StepLR:
+    step_size: 10
+    gamma: 0.1
+  CosineAnnealingLR:
+    T_max: 20
+    eta_min: 0.000001
+  OneCycleLR:
+    total_steps: ${num_epochs}
+    anneal_strategy: "cos"
+    max_lr: 0.001
+  CosineAnnealingWarmRestarts:
+    T_0: 10
+    T_mult: 2
+    eta_min: 0.000001
+  ReduceLROnPlateau:
+    mode: "min"
+    factor: 0.1
+    patience: 5
+    threshold: 0.0001
+    threshold_mode: "rel"
+    cooldown: 0
+    min_lr: 0.000001
+    eps: 1e-08
+
+
+num_epochs: 1000
+batch_size: 512
+num_workers: 1
+max_no_improvement: 50
+transform_aug: true
+transform: false
+seed: 42
+interim_results: "/mnt/evafs/groups/zychowski-lab/jprzybytniowska/KeystrokeDetection/interim_results/"
+project_name: "master-thesis"
+special_keys: false
+partial_wd: false

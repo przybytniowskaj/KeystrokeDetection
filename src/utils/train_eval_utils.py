@@ -5,10 +5,12 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import ConfusionMatrixDisplay, confusion_matrix
 from models.coatnet import MyCoAtNet
 from models.convmixer import ConvMixer
+from models.swin_transformer import SwinTransformer
 
 MODELS = {
     "coatnet": MyCoAtNet,
     "convmixer": ConvMixer,
+    "swintransformer": SwinTransformer,
 }
 
 def separate_parameters(model):

@@ -36,7 +36,7 @@ DATA_DIR = '/data/final'
 
 torchaudio.set_audio_backend("soundfile")
 
-@hydra.main(config_path="../configs", config_name="config_tests")
+@hydra.main(config_path="../configs", config_name="config")
 def train(cfg: DictConfig):
     os.chdir(ROOT_DIR)
     print(f"Current working directory: {os.getcwd()}")
@@ -111,15 +111,16 @@ def train(cfg: DictConfig):
     num_epochs = cfg.num_epochs
     criterion = torch.nn.CrossEntropyLoss()
 
-    param_dict = {pn: p for pn, p in model.named_parameters()}
-    parameters_decay, parameters_no_decay = separate_parameters(model)
-    parameter_groups = [
-        {"params": [param_dict[pn] for pn in parameters_decay], "weight_decay": cfg.weight_decay},
-        {"params": [param_dict[pn] for pn in parameters_no_decay], "weight_decay": 0.0},
-    ]
+    # param_dict = {pn: p for pn, p in model.named_parameters()}
+    # parameters_decay, parameters_no_decay = separate_parameters(model)
+    # parameter_groups = [
+    #     {"params": [param_dict[pn] for pn in parameters_decay], "weight_decay": cfg.weight_decay},
+    #     {"params": [param_dict[pn] for pn in parameters_no_decay], "weight_decay": 0.0},
+    # ]
 
     optimizer_params = cfg.optimizer_configs[cfg.optimizer]
-    parameters = parameter_groups if cfg.partial_wd else model.parameters()
+    # parameters = parameter_groups if cfg.partial_wd else model.parameters()
+    parameters = model.parameters()
     optimizer = OPTIMIZERS[cfg.optimizer](
         parameters, **optimizer_params
     )
