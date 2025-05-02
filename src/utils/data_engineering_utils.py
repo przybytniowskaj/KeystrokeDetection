@@ -35,7 +35,7 @@ def get_middle_peaks(peaks, max_gap=5):
     return refined_peaks
 
 
-def isolator(signal, sample_rate, size, scan, before, after, threshold):
+def isolator(signal, sample_rate, size, scan, before, after, threshold, overlap_rate):
     strokes = []
     stroke_boarders = []
     fft = librosa.stft(signal, n_fft=size, hop_length=scan)
@@ -51,7 +51,7 @@ def isolator(signal, sample_rate, size, scan, before, after, threshold):
     for i in range(peak_count):
         this_peak = refined_peaks[i]
         timestamp = (this_peak * scan) + size // 2
-        if timestamp >= prev_end - 0.12 * sample_rate:
+        if timestamp >= prev_end - overlap_rate * sample_rate:
             if timestamp - before < 0:
                 temp_before = 0
             else:
@@ -66,7 +66,6 @@ def isolator(signal, sample_rate, size, scan, before, after, threshold):
             strokes.append(torch.tensor(keystroke)[None, :])
             stroke_boarders.append((temp_before, temp_after))
             prev_end = timestamp + after
-
     return strokes, energy, stroke_boarders
 
 
@@ -130,9 +129,9 @@ def save_segmented_strokes(strokes, label, output_dir, dataset, subfolder, sampl
     keyboard_type = 'mac'
     recording_type = 'zoom' if dataset == 'practical' and subfolder == 'Zoom' else 'live'
 
-    train_dir = os.path.join(output_dir, dataset, "train", label.lower())
-    val_dir = os.path.join(output_dir, dataset, "val", label.lower())
-    test_dir = os.path.join(output_dir, dataset, "test", label.lower())
+    train_dir = os.path.join(output_dir, "train", dataset, label.lower())
+    val_dir = os.path.join(output_dir, "val", dataset, label.lower())
+    test_dir = os.path.join(output_dir, "test", dataset, label.lower())
     os.makedirs(train_dir, exist_ok=True)
     os.makedirs(val_dir, exist_ok=True)
     os.makedirs(test_dir, exist_ok=True)
@@ -184,23 +183,27 @@ def process_audio_files(audio_file, output_dir, output_dir_img, dataset, save_pl
     for root, dirs, files in os.walk(audio_file):
         subfolder = os.path.basename(root)
         for file in tqdm(files, desc=f"Processing files in {subfolder}"):
-            if file.endswith('.wav'):
+            if file.endswith('.wav') or file.endswith('.m4a'):
                 loc = os.path.join(root, file)
                 waveform, sample_rate = librosa.load(loc, sr=22000)
                 strokes = []
-                key = os.path.splitext(file)[0]
+                key = os.path.splitext(file)[0].lower()
                 key = LABEL_MAP.get(key, key)
                 num_try = 0
                 step = DATASET_CONFIG[dataset]['initial_step']
                 threshold = DATASET_CONFIG[dataset]['initial_threshold']
+
                 if steps is not None and key in DATASET_CONFIG[dataset]['steps']:
                     step = steps[key]
                 if thresholds is not None and key in DATASET_CONFIG[dataset]['thresholds']:
                     threshold = thresholds[key]
+                overlap_rate = DATASET_CONFIG[dataset]['overlap_rate']
+                if 'overlap_rates' in DATASET_CONFIG[dataset] and key in DATASET_CONFIG[dataset]['overlap_rates']:
+                    overlap_rate = DATASET_CONFIG[dataset]['overlap_rates'][key]
 
                 while not len(strokes) == num_keystrokes and num_try < num_tries:
                     strokes, energy, borders = isolator(
-                        waveform[1*sample_rate:], sample_rate, 512, 124, before, after, threshold
+                        waveform[1*sample_rate:], sample_rate, 512, 124, before, after, threshold, overlap_rate
                     )
                     if len(strokes) < num_keystrokes:
                         threshold -= step
@@ -208,6 +211,7 @@ def process_audio_files(audio_file, output_dir, output_dir_img, dataset, save_pl
                         threshold += step
                     if threshold <= 0:
                         print('-- not possible for: ', file)
+                        print('-- found: ', len(strokes))
                         break
                     step = step * 0.99
                     num_try += 1
