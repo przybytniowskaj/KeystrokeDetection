@@ -197,6 +197,7 @@ def process_audio_files(audio_file, output_dir, output_dir_img, dataset, save_pl
                     step = steps[key]
                 if thresholds is not None and key in DATASET_CONFIG[dataset]['thresholds']:
                     threshold = thresholds[key]
+
                 overlap_rate = DATASET_CONFIG[dataset]['overlap_rate']
                 if 'overlap_rates' in DATASET_CONFIG[dataset] and key in DATASET_CONFIG[dataset]['overlap_rates']:
                     overlap_rate = DATASET_CONFIG[dataset]['overlap_rates'][key]
