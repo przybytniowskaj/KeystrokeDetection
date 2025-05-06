@@ -48,24 +48,33 @@ def train(cfg: DictConfig):
 
     train_dataset = AudioDataset(
         ROOT_DIR + DATA_DIR + '/train', cfg.dataset, transform_aug=cfg.transform_aug, transform=not(cfg.transform_aug),
-        special_keys=cfg.special_keys
+        special_keys=cfg.special_keys, exclude_few_special_keys=cfg.exclude_few_special_keys
     )
     val_dataset = AudioDataset(
-        ROOT_DIR + DATA_DIR + '/val', cfg.dataset, transform_aug=False, special_keys=cfg.special_keys
+        ROOT_DIR + DATA_DIR + '/val', cfg.dataset, transform_aug=False, special_keys=cfg.special_keys, exclude_few_special_keys=cfg.exclude_few_special_keys
     )
     test_dataset_all = AudioDataset(
-        ROOT_DIR + DATA_DIR + '/test', 'all', transform_aug=False, special_keys=cfg.special_keys, class_idx=train_dataset.class_to_idx
+        ROOT_DIR + DATA_DIR + '/test', cfg.dataset, transform_aug=False, special_keys=cfg.special_keys, class_idx=train_dataset.class_to_idx,
+        exclude_few_special_keys=cfg.exclude_few_special_keys
     )
+
     test_dataset_1 = AudioDataset(
-        ROOT_DIR + DATA_DIR + '/test', 'practical', transform_aug=False, special_keys=cfg.special_keys, class_idx=train_dataset.class_to_idx
+        ROOT_DIR + DATA_DIR + '/test', 'practical', transform_aug=False, special_keys=cfg.special_keys, class_idx=train_dataset.class_to_idx,
+        exclude_few_special_keys=cfg.exclude_few_special_keys
     )
 
     test_dataset_2 = AudioDataset(
-        ROOT_DIR + DATA_DIR + '/test', 'noiseless', transform_aug=False, special_keys=cfg.special_keys, class_idx=train_dataset.class_to_idx
+        ROOT_DIR + DATA_DIR + '/test', 'noiseless', transform_aug=False, special_keys=cfg.special_keys, class_idx=train_dataset.class_to_idx,
+        exclude_few_special_keys=cfg.exclude_few_special_keys
     )
 
     test_dataset_3 = AudioDataset(
-        ROOT_DIR + DATA_DIR + '/test', 'mka', transform_aug=False, special_keys=cfg.special_keys, class_idx=train_dataset.class_to_idx
+        ROOT_DIR + DATA_DIR + '/test', 'mka', transform_aug=False, special_keys=cfg.special_keys, class_idx=train_dataset.class_to_idx,
+        exclude_few_special_keys=cfg.exclude_few_special_keys
+    )
+    test_dataset_noisy = AudioDataset(
+        ROOT_DIR + DATA_DIR + '/test', 'custom_noisy', transform_aug=False, special_keys=cfg.special_keys, class_idx=train_dataset.class_to_idx,
+        exclude_few_special_keys=cfg.exclude_few_special_keys
     )
 
     num_classes = len(train_dataset.classes)
@@ -102,6 +111,11 @@ def train(cfg: DictConfig):
         batch_size=cfg.batch_size,
         shuffle=False,
     )
+    test_loader_noisy = torch.utils.data.DataLoader(
+        test_dataset_noisy,
+        batch_size=cfg.batch_size,
+        shuffle=False,
+    )
 
     model_params = cfg.model_configs[cfg.model][cfg.model_params]
     model = MODELS[cfg.model](num_classes=num_classes, **model_params)
@@ -111,16 +125,18 @@ def train(cfg: DictConfig):
     num_epochs = cfg.num_epochs
     criterion = torch.nn.CrossEntropyLoss()
 
-    # param_dict = {pn: p for pn, p in model.named_parameters()}
-    # parameters_decay, parameters_no_decay = separate_parameters(model)
-    # parameter_groups = [
-    #     {"params": [param_dict[pn] for pn in parameters_decay], "weight_decay": cfg.weight_decay},
-    #     {"params": [param_dict[pn] for pn in parameters_no_decay], "weight_decay": 0.0},
-    # ]
+    parameter_groups = []
+    if cfg.partial_wd:
+        param_dict = {pn: p for pn, p in model.named_parameters()}
+        parameters_decay, parameters_no_decay = separate_parameters(model)
+        parameter_groups = [
+            {"params": [param_dict[pn] for pn in parameters_decay], "weight_decay": cfg.weight_decay},
+            {"params": [param_dict[pn] for pn in parameters_no_decay], "weight_decay": 0.0},
+        ]
 
     optimizer_params = cfg.optimizer_configs[cfg.optimizer]
-    # parameters = parameter_groups if cfg.partial_wd else model.parameters()
-    parameters = model.parameters()
+    parameters = parameter_groups if cfg.partial_wd else model.parameters()
+    # parameters = model.parameters()
     optimizer = OPTIMIZERS[cfg.optimizer](
         parameters, **optimizer_params
     )
@@ -133,7 +149,7 @@ def train(cfg: DictConfig):
     )
 
     str_wd = "partial_wd" if cfg.partial_wd else 'wd'
-    run_name = f"{model_name}_{cfg.model_params}_{cfg.optimizer}_{cfg.scheduler}_lr_{cfg.lr}_{str_wd}_{cfg.weight_decay}_special_keys_{cfg.special_keys}_{cfg.dataset}_{cfg.batch_size}_correct"
+    run_name = f"{model_name}_{cfg.model_params}_{cfg.optimizer}_{cfg.scheduler}_lr_{cfg.lr}_{str_wd}_{cfg.weight_decay}_special_keys_{cfg.special_keys}_{cfg.dataset}_{cfg.batch_size}"
     run = wandb.init(
         entity="przybytniowskaj-warsaw-university-of-technology",
         project=cfg.project_name,
@@ -308,6 +324,21 @@ def train(cfg: DictConfig):
         }
     )
 
+    test_loss_noisy, test_acc1_noisy, test_acc2_noisy, test_acc3_noisy, test_acc4_noisy, test_acc5_noisy, test_acc10_noisy = evaluate_test(
+        model_name, model_params, class_encoding, test_loader_noisy, path, checkpoint_folder, checkpoint_name, device, criterion, 'noisy'
+    )
+    run.log(
+            {
+                "test_loss_noisy": test_loss_noisy,
+                "test_acc1_noisy": test_acc1_noisy,
+                "test_acc2_noisy": test_acc2_noisy,
+                "test_acc3_noisy": test_acc3_noisy,
+                "test_acc4_noisy": test_acc4_noisy,
+                "test_acc5_noisy": test_acc5_noisy,
+                "test_acc10_noisy": test_acc10_noisy,
+        }
+    )
+
     image_all = Image.open(f"{path}/confusion_matrix_all.png")
     wandb_image = wandb.Image(image_all, caption="Sample Image")
     run.log({"confusion_matrix_all": wandb_image})
@@ -320,6 +351,9 @@ def train(cfg: DictConfig):
     image_3 = Image.open(f"{path}/confusion_matrix_mka.png")
     wandb_image = wandb.Image(image_3, caption="Sample Image")
     run.log({"confusion_matrix_mka": wandb_image})
+    image_noisy = Image.open(f"{path}/confusion_matrix_noisy.png")
+    wandb_image = wandb.Image(image_noisy, caption="Sample Image")
+    run.log({"confusion_matrix_noisy": wandb_image})
 
     run.finish()
 

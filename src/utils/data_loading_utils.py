@@ -1,8 +1,12 @@
 import torchaudio
 import os
+import json
 import random
 import numpy as np
 import torch
+import csv
+from collections import defaultdict
+from tqdm import tqdm
 from torch.utils.data import Dataset
 from torchvision import transforms
 from torchaudio.transforms import TimeMasking, FrequencyMasking, MelSpectrogram, TimeStretch
@@ -10,10 +14,20 @@ import torch.nn.functional as F
 import warnings
 warnings.filterwarnings("ignore")
 
-WAVEFORM_MEAN_LIST = [-1.196521e-5]
-WAVEFORM_STD_LIST = [0.029951086]
-WAVEFORM_MEAN = -1.196521e-5
-WAVEFORM_STD = 0.029951086
+
+def load_waveform_stats():
+    with open("waveform_stats.json", "r") as f:
+        return json.load(f)
+
+WAVEFORM_STATS = load_waveform_stats()
+
+def normalize_waveform(waveform, dataset_name):
+    if dataset_name not in WAVEFORM_STATS:
+        raise ValueError(f"No stats found for dataset key: {dataset_name}")
+
+    mean = WAVEFORM_STATS[dataset_name]["mean"]
+    std = WAVEFORM_STATS[dataset_name]["std"]
+    return (waveform - mean) / std
 
 
 class TimeShifting():
@@ -83,15 +97,12 @@ class RandomTimeStretch:
 
 
 TRANSFORMS = transforms.Compose([
-    # transforms.Normalize(mean=WAVEFORM_MEAN, std=WAVEFORM_MEAN),
     to_mel_spectrogram,
     pad_spectrogram,
-    # transforms.Normalize(mean=WAVEFORM_MEAN_LIST, std=WAVEFORM_MEAN_LIST),
 ])
 
 
 AUG_TRANSFORMS = transforms.Compose([
-    # transforms.Normalize(mean=WAVEFORM_MEAN, std=WAVEFORM_MEAN),
     to_mel_spectrogram,
     RandomTimeStretch(p=0.8),
     pad_spectrogram,
@@ -99,13 +110,7 @@ AUG_TRANSFORMS = transforms.Compose([
     RandomTimeMasking(time_mask_param=3, p=0.5),
     RandomFrequencyMasking(freq_mask_param=1, p=0.6),
     RandomTimeMasking(time_mask_param=1, p=0.6),
-    # transforms.Normalize(mean=WAVEFORM_MEAN_LIST, std=WAVEFORM_MEAN_LIST),
 ])
-
-
-def normalize_waveform(waveform, mean=WAVEFORM_MEAN, std=WAVEFORM_MEAN):
-    """Normalize waveform before converting to spectrogram."""
-    return (waveform - mean) / std
 
 MAP = {
             'lctrl': 'ctrl',
@@ -120,50 +125,118 @@ MAP = {
             'bracketopen': 'bracket'
         }
 
+DATASET_GROUPS = {
+    "all_w_custom": ['mka', 'practical', 'noiseless', 'custom_mac'],
+    "custom_w_first_2": ['practical', 'noiseless', 'custom_mac'],
+    "custom_w_first_2_w_noisy": ['practical', 'noiseless', 'custom_mac', 'custom_dishwasher', 'custom_open_window', 'custom_washing_machine'],
+    "all_w_custom_noisy": ['mka', 'practical', 'noiseless', 'custom_mac', 'custom_dishwasher', 'custom_open_window', 'custom_washing_machine'],
+    "all": ['mka', 'practical', 'noiseless'],
+    "custom_noisy": ['custom_dishwasher', 'custom_open_window', 'custom_washing_machine'],
+}
+
+
+def compute_stats_all_datasets(dataset_root, output_csv_path):
+    dataset_means_stds = {}
+
+    for folder in os.listdir(dataset_root):
+        folder_path = os.path.join(dataset_root, folder)
+        if not os.path.isdir(folder_path):
+            continue
+
+        total_sum = 0.0
+        total_squared_sum = 0.0
+        total_count = 0
+
+        for label in os.listdir(folder_path):
+            label_path = os.path.join(folder_path, label)
+            if not os.path.isdir(label_path):
+                continue
+
+            for fname in tqdm(os.listdir(label_path), desc=f"{folder}/{label}"):
+                file_path = os.path.join(label_path, fname)
+                waveform, _ = torchaudio.load(file_path)
+                waveform = waveform.to(torch.float32)
+                total_sum += waveform.sum().item()
+                total_squared_sum += (waveform ** 2).sum().item()
+                total_count += waveform.numel()
+
+        if total_count > 0:
+            mean = total_sum / total_count
+            std = (total_squared_sum / total_count - mean ** 2) ** 0.5
+            dataset_means_stds[folder] = {"mean": mean, "std": std}
+
+    # Compute group means and stds
+    group_stats = {}
+    for group_name, datasets in DATASET_GROUPS.items():
+        group_means = [dataset_means_stds[d]["mean"] for d in datasets if d in dataset_means_stds]
+        group_stds = [dataset_means_stds[d]["std"] for d in datasets if d in dataset_means_stds]
+        if group_means:
+            group_stats[group_name] = {
+                "mean": sum(group_means) / len(group_means),
+                "std": sum(group_stds) / len(group_stds)
+            }
+
+    # Write all stats to CSV
+    with open(output_csv_path, mode='w', newline='') as csv_file:
+        writer = csv.DictWriter(csv_file, fieldnames=["dataset", "mean", "std"])
+        writer.writeheader()
+
+        # Write per-dataset stats
+        for dataset, stats in dataset_means_stds.items():
+            writer.writerow({"dataset": dataset, "mean": stats["mean"], "std": stats["std"]})
+
+        # Write group stats
+        for group_name, stats in group_stats.items():
+            writer.writerow({"dataset": group_name, "mean": stats["mean"], "std": stats["std"]})
+
+    return dataset_means_stds, group_stats
+
+
 class AudioDataset(Dataset):
-    def __init__(self, root, dataset, transform=True, transform_aug=False, special_keys=False, class_idx=None):
+    def __init__(self, root, dataset, transform=True, transform_aug=False, special_keys=False, class_idx=None,
+                 exclude_few_special_keys=False):
         self.dataset = dataset
         self.root = root
-        self.data_root = self.root if self.dataset=='all' else os.path.join(root, dataset)
+        self.data_folders = DATASET_GROUPS.get(self.dataset, [self.dataset])
         self.transform = TRANSFORMS if transform and not transform_aug else None
         self.transform_aug = AUG_TRANSFORMS if transform_aug else None
-        self.all_classes = self.get_classes()
+        self.all_classes = self.get_classes(exclude_few_special_keys)
         self.unmapped_classes = self.all_classes[0] if not special_keys else self.all_classes[1]
         self.classes = self.all_classes[0] if not special_keys else self.all_classes[2]
         if class_idx is None:
-            self.class_to_idx = {cls_name: idx for idx, cls_name in enumerate(self.classes)}
+            if special_keys:
+                self.class_to_idx = {cls_name: idx for idx, cls_name in enumerate(self.classes)}
+            else:
+                self.class_to_idx = {MAP.get(cls_name, cls_name): idx for idx, cls_name in enumerate(self.classes)}
         else:
             self.class_to_idx = class_idx
             self.classes = class_idx.keys()
 
         self.file_paths = self._get_file_paths()
 
-    def get_classes(self):
+    def get_classes(self, exclude_few_special_keys):
         special = ['apos', 'backslash', 'bracketclose', 'bracketopen', 'caps', 'comma', 'delete',
-        'dot', 'down', 'enter', 'equal', 'esc', 'fn', 'lctrl', 'lcmd', 'lalt', 'left', 'lshift', 'ralt',
-        'rctrl', 'rshift', 'right', 'semicolon', 'slash', 'space', 'start', 'tab', 'up']
+        'dot', 'down', 'enter', 'equal', 'esc', 'lctrl', 'lcmd', 'lalt', 'left', 'lshift', 'ralt',
+        'rctrl', 'rshift', 'right', 'semicolon', 'slash', 'space', 'start', 'tab', 'up', 'dash', 'cmd', 'ctrl']
+        excluded = ['fn', 'start'] if exclude_few_special_keys else []
 
-        if self.dataset == 'all':
-            all_classes = []
-            for dataset in ['mka', 'practical', 'noiseless']:
-                dataset_path = os.path.join(self.root, dataset)
-                if os.path.isdir(dataset_path):
-                    all_classes.extend(os.listdir(dataset_path))
-            all_classes = list(set(all_classes))
-            classes = [cls_name for cls_name in all_classes if cls_name not in special]
-        else:
-            classes = [cls_name for cls_name in os.listdir(self.data_root) if cls_name not in special]
-            all_classes = os.listdir(self.data_root)
+        all_classes = []
+        for dataset in self.data_folders:
+            dataset_path = os.path.join(self.root, dataset)
+            if os.path.isdir(dataset_path):
+                all_classes.extend(os.listdir(dataset_path))
+        all_classes = list(set(all_classes))
+        classes = [cls_name for cls_name in all_classes if cls_name not in special]
 
+        all_classes = [cls_name for cls_name in all_classes if cls_name not in excluded]
         mapped_classes = [MAP.get(key, key) for key in all_classes]
 
         return sorted(classes), sorted(all_classes), sorted(np.unique(mapped_classes))
 
     def _get_file_paths(self):
         paths = []
-        datasets = [self.dataset] if self.dataset != 'all' else [ 'mka', 'practical', 'noiseless']
 
-        for data in datasets:
+        for data in self.data_folders:
             for cls_name in self.classes:
                 folder = os.path.join(self.root, data, cls_name)
                 if os.path.isdir(folder):
@@ -182,7 +255,7 @@ class AudioDataset(Dataset):
     def __getitem__(self, idx):
         file_path, cls_name = self.file_paths[idx]
         waveform, _ = torchaudio.load(file_path)
-        waveform = normalize_waveform(waveform)
+        waveform = normalize_waveform(waveform, self.dataset)
         waveform = waveform.to(torch.float32)
         if self.transform:
             waveform = self.transform(waveform)
