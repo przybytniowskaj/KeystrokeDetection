@@ -82,14 +82,13 @@ def load_config(config_path):
 def calculate_accuracy(outputs, labels):
     _, preds = torch.max(outputs, 1)
     corrects = torch.sum(preds == labels.data).item()
-    return corrects / labels.size(0)
-
+    return corrects
 
 def calculate_top_k_accuracy(outputs, labels, k):
     _, preds = outputs.topk(k, 1, True, True)
     corrects = preds.eq(labels.view(-1, 1).expand_as(preds))
     correct_k = corrects.sum().item()
-    return correct_k / labels.size(0)
+    return correct_k
 
 
 def train_epoch(device, model, criterion, optimizer, train_loader):
@@ -131,7 +130,7 @@ def evaluate_model(device, model, criterion, test_loader, save_cm=False, cm_path
             true_labels.append(labels)
             running_loss += loss.item() * inputs.size(0)
             for i, k in enumerate([1, 2, 3, 4, 5, 10]):
-                running_accuracies[i] += calculate_top_k_accuracy(outputs, labels, k) * inputs.size(0)
+                running_accuracies[i] += calculate_top_k_accuracy(outputs, labels, k)
 
     if save_cm:
         predictions = torch.cat(predictions)
