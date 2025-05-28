@@ -1,32 +1,34 @@
-import torchaudio
 import os
 import random
 import numpy as np
 import torch
-import csv
-from tqdm import tqdm
-from torch.utils.data import Dataset
+import torchaudio
+from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 from torchaudio.transforms import TimeMasking, FrequencyMasking, MelSpectrogram, TimeStretch
 import torch.nn.functional as F
-from torch.utils.data import DataLoader
+from utils.data_stats_utils import load_waveform_stats, DATASET_GROUPS, EXCLUDED_KEYS
 
 import warnings
 warnings.filterwarnings('ignore')
 
+MAP = {
+            'lctrl': 'ctrl',
+            'lcmd': 'cmd',
+            'lalt': 'alt',
+            'lshift': 'shift',
+            'ralt': 'alt',
+            'rctrl': 'ctrl',
+            'rshift': 'shift',
+            'rcmd': 'cmd',
+            'bracketclose': 'bracket',
+            'bracketopen': 'bracket'
+        }
 
-def load_waveform_stats(special_keys=False):
-    path = 'data/final/waveform_stats_all.csv' if special_keys else 'data/final/waveform_stats_alnum.csv'
-    stats = {}
-    with open(path, newline='') as csvfile:
-        reader = csv.DictReader(csvfile)
-        for row in reader:
-            stats[row['dataset']] = {
-                'mean': float(row['mean']),
-                'std': float(row['std'])
-            }
-    return stats
-
+TEST_DATASETS = [
+    'practical', 'noiseless', 'mka', 'custom_mac', 'custom_dishwasher', 'custom_open_window',
+    'custom_washing_machine'
+] #+ list(DATASET_GROUPS.keys())
 
 def normalize_waveform(waveform, dataset_name, special_keys=False):
     stats = load_waveform_stats(special_keys)
@@ -108,104 +110,6 @@ class RandomTimeStretch:
         return spectrogram
 
 
-MAP = {
-            'lctrl': 'ctrl',
-            'lcmd': 'cmd',
-            'lalt': 'alt',
-            'lshift': 'shift',
-            'ralt': 'alt',
-            'rctrl': 'ctrl',
-            'rshift': 'shift',
-            'rcmd': 'cmd',
-            'bracketclose': 'bracket',
-            'bracketopen': 'bracket'
-        }
-
-DATASET_GROUPS = {
-    'all_w_custom': ['mka', 'practical', 'noiseless', 'custom_mac'],
-    'all_w_custom_noisy': ['mka', 'practical', 'noiseless', 'custom_mac', 'custom_dishwasher', 'custom_open_window', 'custom_washing_machine'],
-    'all': ['mka', 'practical', 'noiseless'],
-    'custom_noisy': ['custom_dishwasher', 'custom_open_window', 'custom_washing_machine'],
-    'custom': ['custom_mac', 'custom_dishwasher', 'custom_open_window', 'custom_washing_machine'],
-}
-
-EXCLUDED_KEYS = {'fn', 'start'}
-ALPHANUMERIC_KEYS = set('abcdefghijklmnopqrstuvwxyz0123456789')
-
-
-def compute_stats(dataset_root, DATASET_GROUPS, filter_fn=None):
-    dataset_means_stds = {}
-
-    for folder in os.listdir(dataset_root):
-        folder_path = os.path.join(dataset_root, folder)
-        if not os.path.isdir(folder_path):
-            continue
-
-        total_sum = 0.0
-        total_squared_sum = 0.0
-        total_count = 0
-
-        for label in os.listdir(folder_path):
-            label_path = os.path.join(folder_path, label)
-            if not os.path.isdir(label_path):
-                continue
-            if filter_fn and not filter_fn(label):
-                continue
-
-            for fname in tqdm(os.listdir(label_path), desc=f'{folder}/{label}'):
-                file_path = os.path.join(label_path, fname)
-                waveform, _ = torchaudio.load(file_path)
-                waveform = waveform.to(torch.float32)
-                total_sum += waveform.sum().item()
-                total_squared_sum += (waveform ** 2).sum().item()
-                total_count += waveform.numel()
-
-        if total_count > 0:
-            mean = total_sum / total_count
-            std = (total_squared_sum / total_count - mean ** 2) ** 0.5
-            dataset_means_stds[folder] = {'mean': mean, 'std': std}
-
-    group_stats = {}
-    for group_name, datasets in DATASET_GROUPS.items():
-        group_means = [dataset_means_stds[d]['mean'] for d in datasets if d in dataset_means_stds]
-        group_stds = [dataset_means_stds[d]['std'] for d in datasets if d in dataset_means_stds]
-        if group_means:
-            group_stats[group_name] = {
-                'mean': sum(group_means) / len(group_means),
-                'std': sum(group_stds) / len(group_stds)
-            }
-
-    return dataset_means_stds, group_stats
-
-
-def write_stats_to_csv(path, dataset_stats, group_stats):
-    with open(path, mode='w', newline='') as csv_file:
-        writer = csv.DictWriter(csv_file, fieldnames=['dataset', 'mean', 'std'])
-        writer.writeheader()
-        for dataset, stats in dataset_stats.items():
-            writer.writerow({'dataset': dataset, 'mean': stats['mean'], 'std': stats['std']})
-        for group_name, stats in group_stats.items():
-            writer.writerow({'dataset': group_name, 'mean': stats['mean'], 'std': stats['std']})
-
-
-def compute_and_save_all_stats(dataset_root, output_csv_path_all, output_csv_path_alnum):
-    all_stats, all_group_stats = compute_stats(
-        dataset_root,
-        DATASET_GROUPS,
-        filter_fn=lambda key: key not in EXCLUDED_KEYS
-    )
-    write_stats_to_csv(output_csv_path_all, all_stats, all_group_stats)
-
-    alnum_stats, alnum_group_stats = compute_stats(
-        dataset_root,
-        DATASET_GROUPS,
-        filter_fn=lambda key: key in ALPHANUMERIC_KEYS
-    )
-    write_stats_to_csv(output_csv_path_alnum, alnum_stats, alnum_group_stats)
-
-    return all_stats, all_group_stats, alnum_stats, alnum_group_stats
-
-
 class AudioDataset(Dataset):
     def __init__(self, root, dataset, transform_aug=False, special_keys=False, class_idx=None,
                  image_size=64, exclude_few_special_keys=False, sample_rate=22000):
@@ -223,10 +127,10 @@ class AudioDataset(Dataset):
             MelSpectrogram(self.sample_rate, n_mels=self.image_size, n_fft=512, hop_length=512//4),
             RandomTimeStretch(p=0.8, n_freq=self.image_size),
             lambda x: pad_spectrogram(x, target_size=self.image_size),
-            RandomFrequencyMasking(p=0.6),
-            RandomTimeMasking(time_mask_param=np.random.uniform(1, 5), p=0.6),
-            RandomFrequencyMasking(freq_mask_param=np.random.uniform(1, 5), p=0.6),
-            RandomTimeMasking(time_mask_param=np.random.uniform(1, 7), p=0.6),
+            RandomFrequencyMasking(p=0.4),
+            RandomTimeMasking(time_mask_param=np.random.uniform(1, 4), p=0.4),
+            RandomFrequencyMasking(freq_mask_param=np.random.uniform(1, 5), p=0.4),
+            RandomTimeMasking(time_mask_param=np.random.uniform(1, 6), p=0.4),
         ])
         self.transform_short = transformations_w_aug_short if transform_aug else transformations_short
 
@@ -238,10 +142,10 @@ class AudioDataset(Dataset):
             MelSpectrogram(self.sample_rate, n_mels=self.image_size, n_fft=1024, hop_length=1024//4),
             RandomTimeStretch(p=0.8, n_freq=self.image_size),
             lambda x: pad_spectrogram(x, target_size=self.image_size),
-            RandomFrequencyMasking(p=0.6),
-            RandomTimeMasking(time_mask_param=np.random.uniform(1, 5), p=0.6),
-            RandomFrequencyMasking(freq_mask_param=np.random.uniform(1, 5), p=0.6),
-            RandomTimeMasking(time_mask_param=np.random.uniform(1, 7), p=0.6),
+            RandomFrequencyMasking(p=0.4),
+            RandomTimeMasking(time_mask_param=np.random.uniform(1, 4), p=0.4),
+            RandomFrequencyMasking(freq_mask_param=np.random.uniform(1, 5), p=0.4),
+            RandomTimeMasking(time_mask_param=np.random.uniform(1, 6), p=0.4),
         ])
         self.transform_long = transformations_w_aug_long if transform_aug else transformations_long
 
@@ -261,10 +165,10 @@ class AudioDataset(Dataset):
 
 
     def get_classes(self, exclude_few_special_keys):
-        special = ['apos', 'backslash', 'bracketclose', 'bracketopen', 'caps', 'comma', 'delete', 'fn', 'start',
+        special = set(['apos', 'backslash', 'bracketclose', 'bracketopen', 'caps', 'comma', 'delete', 'fn', 'start',
         'dot', 'down', 'enter', 'equal', 'esc', 'lctrl', 'lcmd', 'lalt', 'left', 'lshift', 'ralt', 'rcmd',
-        'rctrl', 'rshift', 'right', 'semicolon', 'slash', 'space', 'start', 'tab', 'up', 'dash', 'cmd', 'ctrl']
-        excluded = ['fn', 'start'] if exclude_few_special_keys else []
+        'rctrl', 'rshift', 'right', 'semicolon', 'slash', 'space', 'start', 'tab', 'up', 'dash', 'cmd', 'ctrl'])
+        excluded = EXCLUDED_KEYS if exclude_few_special_keys else set()
 
         all_classes = []
         for dataset in self.data_folders:
@@ -304,7 +208,7 @@ class AudioDataset(Dataset):
         length = waveform.shape[1] / sr
 
         waveform = normalize_waveform(waveform, self.dataset).to(torch.float32)
-        if length > 0.4:
+        if length > 0.5:
             waveform = self.transform_long(waveform)
         else:
             waveform = self.transform_short(waveform)
@@ -312,13 +216,6 @@ class AudioDataset(Dataset):
         label = self.class_to_idx[cls_name]
 
         return waveform, label
-
-
-TEST_DATASETS = [
-    'practical', 'noiseless', 'mka', 'custom_mac', 'custom_dishwasher', 'custom_open_window',
-    'custom_washing_machine', 'all_w_custom', 'all_w_custom_noisy', 'all', 'custom_noisy',
-    'custom'
-]
 
 
 def get_all_dataloaders(cfg, ROOT_DIR, DATA_DIR):
@@ -339,9 +236,11 @@ def get_all_dataloaders(cfg, ROOT_DIR, DATA_DIR):
         exclude_few_special_keys=cfg.exclude_few_special_keys,
         image_size=cfg.image_size
     )
-
-    train_loader = DataLoader(train_dataset, batch_size=cfg.batch_size, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=cfg.batch_size, shuffle=False)
+    # batch_size = cfg.batch_size
+    batch_size = len(train_dataset) // 10
+    batch_size = 2 ** (batch_size.bit_length() - 1)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
     test_loaders = {}
     for name in TEST_DATASETS:
@@ -353,7 +252,7 @@ def get_all_dataloaders(cfg, ROOT_DIR, DATA_DIR):
             exclude_few_special_keys=cfg.exclude_few_special_keys,
             image_size=cfg.image_size
         )
-        test_loaders[name] = DataLoader(dataset, batch_size=cfg.batch_size, shuffle=False)
+        test_loaders[name] = DataLoader(dataset, batch_size=batch_size, shuffle=False)
 
 
     all_loaders = {
@@ -362,4 +261,4 @@ def get_all_dataloaders(cfg, ROOT_DIR, DATA_DIR):
         'test': test_loaders,
     }
 
-    return all_loaders, num_classes, class_encoding
+    return all_loaders, num_classes, class_encoding, batch_size

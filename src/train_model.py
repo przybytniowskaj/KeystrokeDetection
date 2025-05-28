@@ -12,8 +12,8 @@ wandb.login()
 from omegaconf import DictConfig, OmegaConf
 from PIL import Image
 
-from utils.data_loading_utils import get_all_dataloaders
-from utils.train_eval_utils import MODELS, train_epoch, evaluate_test, evaluate_model, init_linear, separate_parameters
+from utils.data_loading_utils import get_all_dataloaders, DATASET_GROUPS
+from utils.train_eval_utils import MODELS, train_epoch, evaluate_model, init_linear, separate_parameters, save_confusion_matrix
 
 OPTIMIZERS = {
     'adam': torch.optim.Adam,
@@ -45,23 +45,26 @@ def train(cfg: DictConfig):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f'Using device: {device}')
 
-    data_loaders, num_classes, class_encoding = get_all_dataloaders(cfg, ROOT_DIR, DATA_DIR)
+    data_loaders, num_classes, class_encoding, batch_size = get_all_dataloaders(cfg, ROOT_DIR, DATA_DIR)
     train_loader = data_loaders['train']
     print(f'Train dataset size: {len(train_loader.dataset)}')
     val_loader = data_loaders['val']
     print(f'Validation dataset size: {len(val_loader.dataset)}')
     test_loader = data_loaders['test']
+    cfg.batch_size = batch_size
+    print(f'Batch size: {cfg.batch_size}')
 
     model_params = cfg.model_configs[cfg.model][cfg.model_params]
     model = MODELS[cfg.model](num_classes=num_classes, **model_params)
     model.to(device)
-    # model.apply(init_linear)
+    if cfg.init_linear:
+        model.apply(init_linear)
     model_name = cfg.model
     num_epochs = cfg.num_epochs
     criterion = torch.nn.CrossEntropyLoss()
 
     parameter_groups = []
-    if cfg.partial_wd:
+    if cfg.model == 'coatnet':
         param_dict = {pn: p for pn, p in model.named_parameters()}
         parameters_decay, parameters_no_decay = separate_parameters(model)
         parameter_groups = [
@@ -77,10 +80,10 @@ def train(cfg: DictConfig):
 
     if cfg.scheduler == 'chained':
         cosine_scheduler = SCHEDULERS['CosineAnnealingWarmRestarts'](
-            optimizer, T_0=10, T_mult=1
+            optimizer, T_0=20, T_mult=1
         )
         poli_scheduler = torch.optim.lr_scheduler.PolynomialLR(
-            optimizer, total_iters=cfg.num_epochs, power=0.9
+            optimizer, total_iters=cfg.num_epochs, power=0.7
         )
         scheduler = torch.optim.lr_scheduler.ChainedScheduler(
             [cosine_scheduler, poli_scheduler]
@@ -93,8 +96,8 @@ def train(cfg: DictConfig):
             optimizer, **scheduler_params
         )
 
-    str_wd = 'partial_wd' if cfg.partial_wd else 'wd'
-    run_name = f'{model_name}_{cfg.model_params}_{cfg.optimizer}_{cfg.scheduler}_lr_{cfg.lr}_{str_wd}_{cfg.weight_decay}_special_keys_{cfg.special_keys}_{cfg.dataset}_{cfg.batch_size}'
+    str_wd = 'partial_wd' if cfg.model=='coatnet' else 'wd'
+    run_name = f'{model_name}_{cfg.model_params}_{cfg.optimizer}_{cfg.scheduler}_lr_{cfg.lr}_{str_wd}_{cfg.weight_decay}_special_keys_{cfg.special_keys}_{cfg.dataset}_{cfg.batch_size}_in_lr_{cfg.init_linear}'
     run = wandb.init(
         entity='przybytniowskaj-warsaw-university-of-technology',
         project=cfg.project_name,
@@ -146,31 +149,33 @@ def train(cfg: DictConfig):
                 'train_acc10': acc10
             }
         )
-        val_loss, val_acc1, val_acc2, val_acc3, val_acc4, val_acc5, val_acc10 = evaluate_model(
+        val_res, _, _ = evaluate_model(
             device, model, criterion, val_loader
         )
+        val_loss, val_acc1, val_acc2, val_acc3, val_acc4, val_acc5, val_acc10 = val_res
+
         run.log(
             {
-                'val_loss': val_loss,
-                'val_acc1': val_acc1,
-                'val_acc2': val_acc2,
-                'val_acc3': val_acc3,
-                'val_acc4': val_acc4,
-                'val_acc5': val_acc5,
-                'val_acc10': val_acc10
+                "val_loss": val_loss,
+                "val_acc1": val_acc1,
+                "val_acc2": val_acc2,
+                "val_acc3": val_acc3,
+                "val_acc4": val_acc4,
+                "val_acc5": val_acc5,
+                "val_acc10": val_acc10
             }
         )
         if epoch == 0:
-            checkpoint_folder = path + '/model_checkpoints'
+            checkpoint_folder = path + "/model_checkpoints"
             os.makedirs(checkpoint_folder, exist_ok=True)
-            checkpoint_name = f'/{epoch}_val_acc_{val_acc1:.3f}.pt'
-            torch.save(model.state_dict(), checkpoint_folder + '/' + checkpoint_name)
+            checkpoint_name = f"/{epoch}_val_acc_{val_acc1:.3f}.pt"
+            torch.save(model.state_dict(), checkpoint_folder + "/" + checkpoint_name)
         if val_acc1 > best_val_acc:
             for filename in os.listdir(checkpoint_folder):
                 file_path = os.path.join(checkpoint_folder, filename)
                 if os.path.isfile(file_path):
                     os.unlink(file_path)
-            checkpoint_name = f'/{epoch}_val_acc_{round(val_acc1*100)}.pt'
+            checkpoint_name = f"/{epoch}_val_acc_{round(val_acc1*100)}.pt"
             torch.save(model.state_dict(), checkpoint_folder + checkpoint_name)
             best_val_acc = val_acc1
             stop_counter_acc = 0
@@ -210,26 +215,71 @@ def train(cfg: DictConfig):
     run.log({'table_key': my_table})
 
     # Calculating test accuracy and confusion matrixes and logging to wandb
+    model = MODELS[model_name](num_classes=num_classes, **model_params)
+    checkpoint = torch.load(f"{checkpoint_folder}/{checkpoint_name}")
+    model.load_state_dict(checkpoint)
+    model.to(device)
+
+    test_results = {}
     for name, loader in test_loader.items():
-        test_loss, test_acc1, test_acc2, test_acc3, test_acc4, test_acc5, test_acc10 = evaluate_test(
-            model_name, model_params, class_encoding, loader,
-            path, checkpoint_folder, checkpoint_name, device, criterion, name
+        cm_path = f"{path}/confusion_matrix_{name}.png"
+
+        res, preds, labs = evaluate_model(
+            device, model, criterion, loader, save_cm=True, cm_path=cm_path, class_encoding=class_encoding
         )
+        test_results[name] = {
+            'res' : res,
+            'length': len(loader.dataset),
+            'predictions': preds,
+            'labels': labs
+        }
 
         run.log({
-            f'test_loss_{name}': test_loss,
-            f'test_acc1_{name}': test_acc1,
-            f'test_acc2_{name}': test_acc2,
-            f'test_acc3_{name}': test_acc3,
-            f'test_acc4_{name}': test_acc4,
-            f'test_acc5_{name}': test_acc5,
-            f'test_acc10_{name}': test_acc10,
+            f'test_loss_{name}': res[0],
+            f'test_acc1_{name}': res[1],
+            f'test_acc2_{name}': res[2],
+            f'test_acc3_{name}': res[3],
+            f'test_acc4_{name}': res[4],
+            f'test_acc5_{name}': res[4],
+            f'test_acc10_{name}': res[5],
         })
 
-        cm_path = f'{path}/confusion_matrix_{name}.png'
         try:
             image = Image.open(cm_path)
             run.log({f'confusion_matrix_{name}': wandb.Image(image, caption=f'Confusion Matrix: {name}')})
+        except FileNotFoundError:
+            print(f'Confusion matrix not found for {name}, skipping.')
+
+    inv_class_encoding = {v: k for k, v in class_encoding.items()}
+    for group, datasets in DATASET_GROUPS.items():
+        predictions = []
+        labels = []
+        accs = np.zeros(6)
+        for dataset in datasets:
+            predictions.extend(test_results[dataset]['predictions'])
+            labels.extend(test_results[dataset]['labels'])
+            accs += np.array(test_results[dataset]['res'][1:7]) * test_results[dataset]['length']
+
+        accs /= len(predictions)
+        acc1, acc2, acc3, acc4, acc5, acc10 = accs.tolist()
+        run.log({
+            f'test_acc1_{group}': acc1,
+            f'test_acc2_{group}': acc2,
+            f'test_acc3_{group}': acc3,
+            f'test_acc4_{group}': acc4,
+            f'test_acc5_{group}': acc5,
+            f'test_acc10_{group}': acc10,
+        })
+        classes = np.unique(labels)
+        classes = np.union1d(classes, np.unique(predictions))
+        encoded_classes = [inv_class_encoding.get(cls) for cls in classes]
+        group_cm_path = f"{path}/confusion_matrix_{group}.png"
+        save_confusion_matrix(
+            labels, predictions, group_cm_path, classes=encoded_classes
+        )
+        try:
+            image = Image.open(group_cm_path)
+            run.log({f'confusion_matrix_{group}': wandb.Image(image, caption=f'Confusion Matrix: {group}')})
         except FileNotFoundError:
             print(f'Confusion matrix not found for {name}, skipping.')
 

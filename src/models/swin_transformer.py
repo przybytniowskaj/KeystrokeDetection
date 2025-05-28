@@ -239,12 +239,8 @@ class SwinTransformerBlock(nn.Module):
         self.mlp = Mlp(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=act_layer, drop=drop)
 
         if self.shift_size > 0:
-            # calculate attention mask for SW-MSA
-            # print(self.input_resolution)
             H, W = self.input_resolution
             img_mask = torch.zeros((1, H, W, 1))  # 1 H W 1
-            # print(img_mask)
-            # print(self.window_size)
             h_slices = (slice(0, -self.window_size),
                         slice(-self.window_size, -self.shift_size),
                         slice(-self.shift_size, None))
