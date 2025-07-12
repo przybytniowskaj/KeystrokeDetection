@@ -247,6 +247,7 @@ def train(cfg: DictConfig):
         try:
             image = Image.open(cm_path)
             run.log({f'confusion_matrix_{name}': wandb.Image(image, caption=f'Confusion Matrix: {name}')})
+            os.remove(cm_path)
         except FileNotFoundError:
             print(f'Confusion matrix not found for {name}, skipping.')
 
@@ -280,6 +281,7 @@ def train(cfg: DictConfig):
         try:
             image = Image.open(group_cm_path)
             run.log({f'confusion_matrix_{group}': wandb.Image(image, caption=f'Confusion Matrix: {group}')})
+            os.remove(group_cm_path)
         except FileNotFoundError:
             print(f'Confusion matrix not found for {name}, skipping.')
 

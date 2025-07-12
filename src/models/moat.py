@@ -410,7 +410,7 @@ class MOAT(nn.Module):
             in_channels: int = 3,
             depths: Tuple[int, ...] = (2, 3, 7, 2),
             channels: Tuple[int, ...] = (96, 192, 384, 768),
-            img_size: Tuple[int, int] = (224, 224),
+            img_size: int = 64,
             num_classes: int = 1000,
             embed_dim: int = 64,
             num_heads: int = 32,
@@ -429,8 +429,7 @@ class MOAT(nn.Module):
         assert global_pool in ["avg", "max"], f"Only avg and max is supported but {global_pool} is given"
         self.num_classes: int = num_classes
         # image size
-        self.H = img_size[0]
-        self.W = img_size[1]
+        self.H, self.W = img_size, img_size
         # stem
         self.stem = nn.Sequential(
             nn.Conv2d(in_channels=in_channels, out_channels=embed_dim, kernel_size=(3, 3), stride=(2, 2),

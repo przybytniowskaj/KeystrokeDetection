@@ -2,7 +2,7 @@
 #SBATCH --account zychowski-lab
 #SBATCH --partition=short
 #SBATCH --nodes 1
-#SBATCH --cpus-per-task 4
+#SBATCH --cpus-per-task 2
 #SBATCH --gpus-per-task 1
 #SBATCH --time 23:59:00
 #SBATCH --mem=80G
@@ -10,8 +10,8 @@
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=julia.przybytniowska.stud@pw.edu.pl
 #SBATCH --job-name=diff_data_exp
-#SBATCH --output=exp_logs/diff_data_exp-%A_3_%a.log
-#SBATCH --array=8-63
+#SBATCH --output=exp_logs/initial_swin_smaller-%A_%a.log
+#SBATCH --array=0-15
 
 
 script_path=$(readlink -f "$0")
@@ -27,15 +27,16 @@ echo $CONDA_DEFAULT_ENV
 wandb online
 export HYDRA_FULL_ERROR=1
 OPTIMIZERS=(adam)
-ARCHITECTURES=(third)
-DECAYS=(0.0001 0.0005)
-LEARNING_RATES=(0.00005 0.0001)
-SCHEDULERS=(OneCycleLR)
-SPECIALKEYS=(true false)
-DATASETS=(all practical mka noiseless)
-BATCH_SIZES=(256 128)
+ARCHITECTURES=( default bigger) #big
+DECAYS=(0.05) #0.001 0.05
+LEARNING_RATES=( 0.0001 0.00005) # 0.0001 0.00001 0.00005
+SCHEDULERS=( chained CosineAnnealingLR ) #chained
+SPECIALKEYS=(false true) #false
+DATASETS=(all ) #  custom_noisy all all_w_custom
+LINEAR_INIT=(true) #  false
+# EXCLUDE_FEW_SP=(true)
 
-PARAMS=($(python configs/return_unique_param_set.py -l "${LEARNING_RATES[@]}" -s "${SCHEDULERS[@]}" -o "${OPTIMIZERS[@]}" -w "${DECAYS[@]}" -a "${ARCHITECTURES[@]}" -k "${SPECIALKEYS[@]}" -d "${DATASETS[@]}" -b "${BATCH_SIZES[@]}" --id $SLURM_ARRAY_TASK_ID | tr -d '[],'))
+PARAMS=($(python configs/return_unique_param_set.py -l "${LEARNING_RATES[@]}" -s "${SCHEDULERS[@]}" -o "${OPTIMIZERS[@]}" -w "${DECAYS[@]}" -a "${ARCHITECTURES[@]}" -k "${SPECIALKEYS[@]}" -d "${DATASETS[@]}" -b "${LINEAR_INIT[@]}" --id $SLURM_ARRAY_TASK_ID | tr -d '[],'))
 
 LR=${PARAMS[0]}
 SCHEDULER=${PARAMS[1]}
@@ -44,7 +45,8 @@ DECAY=${PARAMS[3]}
 ARCHITECTURE=${PARAMS[4]}
 SPECIALKEYS=${PARAMS[5]}
 DATASETS=${PARAMS[6]}
-BATCH_SIZES=${PARAMS[7]}
+LINEAR_INIT=${PARAMS[7]}
+# EXCLUDE_FEW_SP=${EXCLUDE_FEW_SP[0]}
 
 echo "LR: $LR"
 echo "SCHEDULER: $SCHEDULER"
@@ -53,7 +55,7 @@ echo "DECAY: $DECAY"
 echo "ARCHITECTURE: $ARCHITECTURE"
 echo "SPECIALKEYS: $SPECIALKEYS"
 echo "DATASETS: $DATASETS"
-echo "BATCH_SIZES: $BATCH_SIZES"
+echo "LINEAR_INIT: $LINEAR_INIT"
 
 srun python src/train_model.py \
     ++lr=$LR ++optimizer=$OPTIMIZER \
@@ -62,4 +64,4 @@ srun python src/train_model.py \
     ++weight_decay=$DECAY \
     ++special_keys=$SPECIALKEYS \
     ++dataset=$DATASETS \
-    ++batch_size=$BATCH_SIZES \
+    ++init_linear=$LINEAR_INIT \

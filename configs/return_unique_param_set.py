@@ -29,7 +29,7 @@ def main():
     parser.add_argument('-a', '--architectures', nargs='+', type=str, help="Architectures")
     parser.add_argument('-k', '--special_keys', nargs='+', type=str, help="Special Keys")
     parser.add_argument('-d', '--datasets', nargs='+', type=str, help="Datasets")
-    parser.add_argument('-b', '--batch_size', nargs='+', type=int, help="Batch size")
+    parser.add_argument('-b', '--batch_size', nargs='+', type=str, help="Batch size")
     parser.add_argument('--id', type=int, help="SLURM_ARRAY_TASK_ID")
     args = parser.parse_args()
 
