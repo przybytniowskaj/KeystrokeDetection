@@ -40,6 +40,7 @@ def normalize_waveform(waveform, dataset_name, special_keys=False):
     return (waveform - mean) / std
 
 
+
 class TimeShifting():
     def __call__(self, samples):
         samples = samples.numpy()
@@ -68,8 +69,7 @@ def pad_spectrogram(spectrogram, target_size=64):
         pad_time = target_size - time_steps
         spectrogram = F.pad(spectrogram, (0, pad_time, 0, 0))
     return spectrogram
-
-
+  
 
 class RandomFrequencyMasking:
     def __init__(self, freq_mask_param=3, p=0.5):
@@ -109,6 +109,18 @@ class RandomTimeStretch:
             return self.time_stretch_2(spectrogram).to(torch.float32)
         return spectrogram
 
+MAP = {
+            'lctrl': 'ctrl',
+            'lcmd': 'cmd',
+            'lalt': 'alt',
+            'lshift': 'shift',
+            'ralt': 'alt',
+            'rctrl': 'ctrl',
+            'rshift': 'shift',
+            'rcmd': 'cmd',
+            'bracketclose': 'bracket',
+            'bracketopen': 'bracket'
+        }
 
 class AudioDataset(Dataset):
     def __init__(self, root, dataset, transform_aug=False, special_keys=False, class_idx=None,

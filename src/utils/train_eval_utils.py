@@ -130,6 +130,7 @@ def evaluate_model(device, model, criterion, test_loader, save_cm=False, cm_path
             preds.append(outputs)
             true_labels.append(labels)
             running_loss += loss.item()
+
             for i, k in enumerate([1, 2, 3, 4, 5, 10]):
                 running_accuracies[i] += calculate_top_k_accuracy(outputs, labels, k)
 
@@ -149,4 +150,3 @@ def evaluate_model(device, model, criterion, test_loader, save_cm=False, cm_path
     accuracies = [acc / length for acc in running_accuracies]
 
     return [loss] + accuracies, predictions, true_labels
-

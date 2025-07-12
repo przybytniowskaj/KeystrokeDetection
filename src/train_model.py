@@ -59,6 +59,7 @@ def train(cfg: DictConfig):
     model.to(device)
     if cfg.init_linear:
         model.apply(init_linear)
+
     model_name = cfg.model
     num_epochs = cfg.num_epochs
     criterion = torch.nn.CrossEntropyLoss()
@@ -71,6 +72,7 @@ def train(cfg: DictConfig):
             {'params': [param_dict[pn] for pn in parameters_decay], 'weight_decay': cfg.weight_decay},
             {'params': [param_dict[pn] for pn in parameters_no_decay], 'weight_decay': 0.0},
         ]
+
 
     optimizer_params = cfg.optimizer_configs[cfg.optimizer]
     parameters = parameter_groups if cfg.partial_wd else model.parameters()
@@ -118,6 +120,7 @@ def train(cfg: DictConfig):
     cfg.class_encoding = class_encoding
 
     with open(f'{path}/config.json', 'w') as f:
+
         json.dump(OmegaConf.to_container(cfg), f)
 
     columns = ['Train Loss', 'Train 1st Accuracy', 'Train 2nd Accuracy', 'Train 3rd Accuracy',
@@ -206,6 +209,7 @@ def train(cfg: DictConfig):
             break
 
         if cfg.scheduler == 'ReduceLROnPlateau':
+
             scheduler.step(metrics=val_loss)
         else:
             scheduler.step()
