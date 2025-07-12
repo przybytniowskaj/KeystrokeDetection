@@ -70,7 +70,9 @@ def isolator(signal, sample_rate, size, scan, before, after, threshold, overlap_
 
 
 def plot_energy(signal, energy, threshold, borders, sample_rate, output_dir_img, key, dataset, subfolder,
+
                 save_plots=False, show_plots=False):
+    # signal plot
     # signal plot
     plt.figure(figsize=(12, 5))
     librosa.display.waveshow(signal)
@@ -86,6 +88,8 @@ def plot_energy(signal, energy, threshold, borders, sample_rate, output_dir_img,
     if show_plots:
         plt.show()
     plt.close()
+
+    # energy plot
 
     # energy plot
     plt.figure(figsize=(12, 5))
@@ -171,7 +175,87 @@ def save_segmented_strokes(strokes, label, output_dir, dataset, subfolder, sampl
                 sample_rate
             )
 
+def split_data(data, splits=(0.7, 0.15, 0.15)):
+    random.shuffle(data)
+    total = len(data)
+    train_end = int(total * splits[0])
+    val_end = train_end + int(total * splits[1])
 
+    train_data = data[:train_end]
+    val_data = data[train_end:val_end]
+    test_data = data[val_end:]
+
+    return train_data, val_data, test_data
+
+
+def trim_silence_from_signal(signal, file_path, min_length=400):
+    trim_leading_silence = lambda x: x[max(0, detect_leading_silence(x) - min_length):]
+    trim_trailing_silence = lambda x: trim_leading_silence(x.reverse()).reverse()
+    strip_silence = lambda x: trim_trailing_silence(trim_leading_silence(x))
+
+    stripped_signal = strip_silence(signal)
+    return np.frombuffer(stripped_signal.raw_data, dtype=np.int16)
+
+
+def save_segmented_strokes(strokes, label, output_dir, dataset, subfolder, sample_rate, threshold, min_length):
+    os.makedirs(os.path.join(output_dir, "tresholds"), exist_ok=True)
+    with open(os.path.join(output_dir, "tresholds", f"{dataset}_tresholds.txt"), 'a') as f:
+        f.write(f"{threshold}\n")
+
+    keyboard_type = 'mac'
+    recording_type = 'zoom' if dataset == 'practical' and subfolder == 'Zoom' else 'live'
+
+    train_dir = os.path.join(output_dir, dataset, "train", label.lower())
+    val_dir = os.path.join(output_dir, dataset, "val", label.lower())
+    test_dir = os.path.join(output_dir, dataset, "test", label.lower())
+    os.makedirs(train_dir, exist_ok=True)
+    os.makedirs(val_dir, exist_ok=True)
+    os.makedirs(test_dir, exist_ok=True)
+
+    filename_base = f"{keyboard_type}_{recording_type}_{label.lower()}"
+
+    skip = None
+    last_skip = None
+    if 'keystrokes_to_skip' in DATASET_CONFIG[dataset] and label in DATASET_CONFIG[dataset]['keystrokes_to_skip']:
+        skip = DATASET_CONFIG[dataset]['keystrokes_to_skip'][label]
+    if 'last_strokes_to_skip' in DATASET_CONFIG[dataset] and label in DATASET_CONFIG[dataset]['last_strokes_to_skip']:
+        last_skip = DATASET_CONFIG[dataset]['last_strokes_to_skip'][label]
+
+    filtered_strokes = [
+        (i, stroke) for i, stroke in enumerate(strokes)
+        if not ((skip is not None and i in skip) or (last_skip is not None and i == len(strokes) - 1))
+    ]
+
+    train_strokes, val_strokes, test_strokes = split_data(filtered_strokes)
+
+    for split_strokes, split_dir in [
+        (train_strokes, train_dir),
+        (val_strokes, val_dir),
+        (test_strokes, test_dir),
+    ]:
+        for i, stroke in split_strokes:
+            stroke_int16 = (stroke.numpy().flatten() * 32767).astype(np.int16)
+
+            signal = AudioSegment(
+                stroke_int16.tobytes(), frame_rate=sample_rate, sample_width=2, channels=1
+            )
+            signal = trim_silence_from_signal(signal, f"{filename_base}_{i}.wav", min_length)
+            filename = os.path.join(split_dir, f"{filename_base}_{i}.wav")
+            torchaudio.save(
+                filename,
+                torch.tensor(signal, dtype=torch.int16).unsqueeze(0),
+                sample_rate
+            )
+
+
+def process_audio_files(audio_file, output_dir, output_dir_img, dataset, save_plots=False,
+                        show_plots=False):
+    num_keystrokes = DATASET_CONFIG[dataset]['num_keystrokes']
+    num_tries = DATASET_CONFIG[dataset]['num_segmentation_tries']
+    before = DATASET_CONFIG[dataset]['before']
+    after = DATASET_CONFIG[dataset]['after']
+    steps = DATASET_CONFIG[dataset]['steps'] if 'steps' in DATASET_CONFIG[dataset] else None
+    thresholds = DATASET_CONFIG[dataset]['thresholds'] if 'thresholds' in DATASET_CONFIG[dataset] else None
 def process_audio_files(audio_file, output_dir, output_dir_img, dataset, save_plots=False,
                         show_plots=False):
     num_keystrokes = DATASET_CONFIG[dataset]['num_keystrokes']
@@ -192,7 +276,6 @@ def process_audio_files(audio_file, output_dir, output_dir_img, dataset, save_pl
                 num_try = 0
                 step = DATASET_CONFIG[dataset]['initial_step']
                 threshold = DATASET_CONFIG[dataset]['initial_threshold']
-
                 if steps is not None and key in DATASET_CONFIG[dataset]['steps']:
                     step = steps[key]
                 if thresholds is not None and key in DATASET_CONFIG[dataset]['thresholds']:

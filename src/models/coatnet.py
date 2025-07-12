@@ -204,7 +204,7 @@ class Head(nn.Module):
 
 
 class MyCoAtNet(nn.Sequential):
-    def __init__(self, nums_blocks, layer_out_channels, num_classes):
+    def __init__(self, nums_blocks, layer_out_channels, num_classes, image_size=64):
         s0 = nn.Sequential(Stem(layer_out_channels[0]))
 
         s1 = [DownsamplingMBConv(layer_out_channels[0], layer_out_channels[1])]
@@ -217,14 +217,14 @@ class MyCoAtNet(nn.Sequential):
             s2.append(MBConv(layer_out_channels[2], layer_out_channels[2]))
         s2 = nn.Sequential(*s2)
 
-        s3 = [DownsampleTransformerBlock(layer_out_channels[2], layer_out_channels[3], 64 // 16)]
+        s3 = [DownsampleTransformerBlock(layer_out_channels[2], layer_out_channels[3], image_size // 16)]
         for i in range(nums_blocks[3] - 1):
-            s3.append(TransformerBlock(layer_out_channels[3], layer_out_channels[3], 64 // 16))
+            s3.append(TransformerBlock(layer_out_channels[3], layer_out_channels[3], image_size // 16))
         s3 = nn.Sequential(*s3)
 
-        s4 = [DownsampleTransformerBlock(layer_out_channels[3], layer_out_channels[4], 64 // 32)]
+        s4 = [DownsampleTransformerBlock(layer_out_channels[3], layer_out_channels[4], image_size // 32)]
         for i in range(nums_blocks[4] - 1):
-            s4.append(TransformerBlock(layer_out_channels[4], layer_out_channels[4], 64 // 32))
+            s4.append(TransformerBlock(layer_out_channels[4], layer_out_channels[4], image_size // 32))
         s4 = nn.Sequential(*s4)
 
         head = Head(layer_out_channels[4], num_classes)
