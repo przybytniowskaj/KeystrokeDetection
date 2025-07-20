@@ -256,14 +256,6 @@ def process_audio_files(audio_file, output_dir, output_dir_img, dataset, save_pl
     after = DATASET_CONFIG[dataset]['after']
     steps = DATASET_CONFIG[dataset]['steps'] if 'steps' in DATASET_CONFIG[dataset] else None
     thresholds = DATASET_CONFIG[dataset]['thresholds'] if 'thresholds' in DATASET_CONFIG[dataset] else None
-def process_audio_files(audio_file, output_dir, output_dir_img, dataset, save_plots=False,
-                        show_plots=False):
-    num_keystrokes = DATASET_CONFIG[dataset]['num_keystrokes']
-    num_tries = DATASET_CONFIG[dataset]['num_segmentation_tries']
-    before = DATASET_CONFIG[dataset]['before']
-    after = DATASET_CONFIG[dataset]['after']
-    steps = DATASET_CONFIG[dataset]['steps'] if 'steps' in DATASET_CONFIG[dataset] else None
-    thresholds = DATASET_CONFIG[dataset]['thresholds'] if 'thresholds' in DATASET_CONFIG[dataset] else None
     for root, dirs, files in os.walk(audio_file):
         subfolder = os.path.basename(root)
         for file in tqdm(files, desc=f"Processing files in {subfolder}"):

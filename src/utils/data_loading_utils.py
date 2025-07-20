@@ -3,6 +3,7 @@ import random
 import numpy as np
 import torch
 import torchaudio
+import noisereduce as nr
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 from torchaudio.transforms import TimeMasking, FrequencyMasking, MelSpectrogram, TimeStretch
@@ -69,7 +70,7 @@ def pad_spectrogram(spectrogram, target_size=64):
         pad_time = target_size - time_steps
         spectrogram = F.pad(spectrogram, (0, pad_time, 0, 0))
     return spectrogram
-  
+
 
 class RandomFrequencyMasking:
     def __init__(self, freq_mask_param=3, p=0.5):
@@ -124,11 +125,12 @@ MAP = {
 
 class AudioDataset(Dataset):
     def __init__(self, root, dataset, transform_aug=False, special_keys=False, class_idx=None,
-                 image_size=64, exclude_few_special_keys=False, sample_rate=22000):
+                 image_size=64, exclude_few_special_keys=False, sample_rate=22000, noise_reduction=False):
         self.image_size = image_size
         self.sample_rate = sample_rate
         self.dataset = dataset
         self.root = root
+        self.noise_reduction = noise_reduction
         self.data_folders = DATASET_GROUPS.get(self.dataset, [self.dataset])
 
         transformations_short = transforms.Compose([
@@ -219,6 +221,9 @@ class AudioDataset(Dataset):
         waveform, sr = torchaudio.load(file_path)
         length = waveform.shape[1] / sr
 
+        if self.noise_reduction:
+            waveform = self.apply_noise_reduction(waveform, sr)
+
         waveform = normalize_waveform(waveform, self.dataset).to(torch.float32)
         if length > 0.5:
             waveform = self.transform_long(waveform)
@@ -228,6 +233,10 @@ class AudioDataset(Dataset):
         label = self.class_to_idx[cls_name]
 
         return waveform, label
+
+    def apply_noise_reduction(self, waveform, sr):
+        waveform_denoised = nr.reduce_noise(y=waveform, sr=sr)
+        return waveform_denoised
 
 
 def get_all_dataloaders(cfg, ROOT_DIR, DATA_DIR):
