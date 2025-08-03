@@ -29,12 +29,25 @@ def window_partition(
     """
     # Get size of input
     B, C, H, W = input.shape
+
+    # Check if dimensions are valid
+    if H == 0 or W == 0:
+        raise ValueError(f"Invalid input dimensions: H={H}, W={W}. Ensure input tensor has valid dimensions.")
+
+    # Check divisibility and pad if necessary
+    pad_h = (window_size[0] - H % window_size[0]) % window_size[0]
+    pad_w = (window_size[1] - W % window_size[1]) % window_size[1]
+    if pad_h > 0 or pad_w > 0:
+        input = nn.functional.pad(input, (0, pad_w, 0, pad_h))
+
+    # Update H and W after padding
+    H, W = input.shape[2], input.shape[3]
+
     # Unfold input
     windows = input.view(B, C, H // window_size[0], window_size[0], W // window_size[1], window_size[1])
     # Permute and reshape to [B * windows, window_size[0], window_size[1], channels]
     windows = windows.permute(0, 2, 4, 3, 5, 1).contiguous().view(-1, window_size[0], window_size[1], C)
     return windows
-
 
 def window_reverse(
         windows: torch.Tensor,
@@ -53,11 +66,23 @@ def window_reverse(
     """
     # Get height and width
     H, W = original_size
+
+    # Check divisibility and pad if necessary
+    pad_h = (window_size[0] - H % window_size[0]) % window_size[0]
+    pad_w = (window_size[1] - W % window_size[1]) % window_size[1]
+    padded_H, padded_W = H + pad_h, W + pad_w
+
     # Compute original batch size
-    B = int(windows.shape[0] / (H * W / window_size[0] / window_size[1]))
+    B = int(windows.shape[0] / (padded_H * padded_W / window_size[0] / window_size[1]))
+
     # Fold grid tensor
-    output = windows.view(B, H // window_size[0], W // window_size[1], window_size[0], window_size[1], -1)
-    output = output.permute(0, 5, 1, 3, 2, 4).contiguous().view(B, -1, H, W)
+    output = windows.view(B, padded_H // window_size[0], padded_W // window_size[1], window_size[0], window_size[1], -1)
+    output = output.permute(0, 5, 1, 3, 2, 4).contiguous().view(B, -1, padded_H, padded_W)
+
+    # Remove padding if applied
+    if pad_h > 0 or pad_w > 0:
+        output = output[:, :, :H, :W]
+
     return output
 
 

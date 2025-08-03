@@ -1,4 +1,4 @@
-model: "coatnet"
+model: "moat"
 model_params: default
 model_configs:
   coatnet:
@@ -41,7 +41,7 @@ model_configs:
       "channels": [128, 384, 512, 1024]
       "attn_drop": 0.3
       "drop": 0.3
-    default_window: #71M
+    default_window: #72M
       "img_size": ${image_size}
       "in_channels": 1
       "embed_dim": 128
@@ -50,7 +50,43 @@ model_configs:
       "attn_drop": 0.3
       "drop": 0.3
       "use_window": true
+      "window_size": 16
+    smaller: #20M
+      "img_size": ${image_size}
+      "in_channels": 1
+      "embed_dim": 128
+      "depths": [2,2,4,2]
+      "channels": [128, 256, 396, 512]
+      "attn_drop": 0.3
+      "drop": 0.3
+    smaller_window: #20M
+      "img_size": ${image_size}
+      "in_channels": 1
+      "embed_dim": 128
+      "depths": [2,2,4,2]
+      "channels": [128, 256, 396, 512]
+      "attn_drop": 0.3
+      "drop": 0.3
+      "use_window": true
       "window_size": 8
+    bigger: #116
+      "img_size": ${image_size}
+      "in_channels": 1
+      "embed_dim": 256
+      "depths": [3,5,9,3]
+      "channels": [256, 512, 768, 1024]
+      "attn_drop": 0.3
+      "drop": 0.3
+    bigger_window: #116M
+      "img_size": ${image_size}
+      "in_channels": 1
+      "embed_dim": 256
+      "depths": [3,5,9,3]
+      "channels": [256, 512, 768, 1024]
+      "attn_drop": 0.3
+      "drop": 0.3
+      "use_window": true
+      "window_size": 16
   swintransformer:
     default:
       "image_size": ${image_size}
