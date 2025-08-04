@@ -176,7 +176,7 @@ scheduler_configs:
     gamma: 0.1
   CosineAnnealingLR:
     T_max: 20
-    eta_min: 0.000001
+    eta_min: 0.0000001
   OneCycleLR:
     total_steps: ${num_epochs}
     anneal_strategy: "cos"
@@ -184,7 +184,7 @@ scheduler_configs:
   CosineAnnealingWarmRestarts:
     T_0: 10
     T_mult: 2
-    eta_min: 0.000001
+    eta_min: 0.0000001
   ReduceLROnPlateau:
     mode: "min"
     factor: 0.1
@@ -203,7 +203,7 @@ max_no_improvement: 50
 transform_aug: true
 transform: false
 seed: 42
-interim_results: "/mnt/evafs/groups/zychowski-lab/jprzybytniowska/KeystrokeDetection/interim_results/"
+interim_results: "/home/julia_przybytniowska_jp/interim_results/"
 project_name: "master-thesis"
 special_keys: false
 partial_wd: false
