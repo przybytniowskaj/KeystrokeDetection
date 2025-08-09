@@ -110,18 +110,18 @@ class RandomTimeStretch:
             return self.time_stretch_2(spectrogram).to(torch.float32)
         return spectrogram
 
-MAP = {
-            'lctrl': 'ctrl',
-            'lcmd': 'cmd',
-            'lalt': 'alt',
-            'lshift': 'shift',
-            'ralt': 'alt',
-            'rctrl': 'ctrl',
-            'rshift': 'shift',
-            'rcmd': 'cmd',
-            'bracketclose': 'bracket',
-            'bracketopen': 'bracket'
-        }
+# MAP = {
+#             'lctrl': 'ctrl',
+#             'lcmd': 'cmd',
+#             'lalt': 'alt',
+#             'lshift': 'shift',
+#             'ralt': 'alt',
+#             'rctrl': 'ctrl',
+#             'rshift': 'shift',
+#             'rcmd': 'cmd',
+#             'bracketclose': 'bracket',
+#             'bracketopen': 'bracket'
+#         }
 
 class AudioDataset(Dataset):
     def __init__(self, root, dataset, transform_aug=False, special_keys=False, class_idx=None,
@@ -164,13 +164,10 @@ class AudioDataset(Dataset):
         self.transform_long = transformations_w_aug_long if transform_aug else transformations_long
 
         self.all_classes = self.get_classes(exclude_few_special_keys)
-        self.unmapped_classes = self.all_classes[0] if not special_keys else self.all_classes[1]
-        self.classes = self.all_classes[0] if not special_keys else self.all_classes[2]
+        self.classes = self.all_classes[0] if not special_keys else self.all_classes[1]
+        # self.classes = self.all_classes[0] if not special_keys else self.all_classes[2]
         if class_idx is None:
-            if special_keys:
-                self.class_to_idx = {cls_name: idx for idx, cls_name in enumerate(self.classes)}
-            else:
-                self.class_to_idx = {MAP.get(cls_name, cls_name): idx for idx, cls_name in enumerate(self.classes)}
+            self.class_to_idx = {cls_name: idx for idx, cls_name in enumerate(self.classes)}
         else:
             self.class_to_idx = class_idx
             self.classes = class_idx.keys()
@@ -193,24 +190,21 @@ class AudioDataset(Dataset):
         classes = [cls_name for cls_name in all_classes if cls_name not in special]
 
         all_classes = [cls_name for cls_name in all_classes if cls_name not in excluded]
-        mapped_classes = [MAP.get(key, key) for key in all_classes]
+        # mapped_classes = [MAP.get(key, key) for key in all_classes]
 
-        return sorted(classes), sorted(all_classes), sorted(np.unique(mapped_classes))
+        return sorted(classes), sorted(all_classes)#, sorted(np.unique(mapped_classes))
 
     def _get_file_paths(self):
         paths = []
 
         for data in self.data_folders:
             for cls_name in self.classes: #to be fixed
+                # mapped_classes = [k for k, v in MAP.items() if v == cls_name] + [cls_name]
+                # for key in mapped_classes:
                 folder = os.path.join(self.root, data, cls_name)
                 if os.path.isdir(folder):
                     for file in os.listdir(os.path.join(folder)):
-                        paths.append(
-                            (
-                                os.path.join(folder, file),
-                                MAP.get(cls_name, cls_name)
-                            )
-                        )
+                        paths.append((os.path.join(folder, file), cls_name))
         return paths
 
     def __len__(self):
@@ -274,7 +268,6 @@ def get_all_dataloaders(cfg, ROOT_DIR, DATA_DIR):
             image_size=cfg.image_size
         )
         test_loaders[name] = DataLoader(dataset, batch_size=batch_size, shuffle=False)
-
 
     all_loaders = {
         'train': train_loader,
