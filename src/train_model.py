@@ -99,8 +99,9 @@ def train(cfg: DictConfig):
             optimizer, **scheduler_params
         )
 
-    str_wd = 'partial_wd' if cfg.model=='coatnet' else 'wd'
-    run_name = f'{model_name}_{cfg.model_params}_{cfg.optimizer}_{cfg.scheduler}_lr_{cfg.lr}_{str_wd}_{cfg.weight_decay}_special_keys_{cfg.special_keys}_{cfg.dataset}_{cfg.batch_size}_in_lr_{cfg.init_linear}'
+    str_wd = 'partial_wd' if cfg.model == 'coatnet' else 'wd'
+    suffix = '_unmapped' if cfg.special_keys else ''
+    run_name = f'{model_name}_{cfg.model_params}_{cfg.optimizer}_{cfg.scheduler}_lr_{cfg.lr}_{str_wd}_{cfg.weight_decay}_special_keys_{cfg.special_keys}_{cfg.dataset}_{cfg.batch_size}_in_lr_{cfg.init_linear}{suffix}'
     run = wandb.init(
         entity='przybytniowskaj-warsaw-university-of-technology',
         project=cfg.project_name,
