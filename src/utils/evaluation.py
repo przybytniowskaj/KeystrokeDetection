@@ -11,10 +11,10 @@ import torchaudio
 from Levenshtein import distance
 from google import genai
 
-from src.constants.evaluation import PROMPT_ALPHANUM, PROMPT_ALL, TARGET_SENTENCES, TARGET_WORDS
-from src.utils.loading import AudioDataset, normalize_waveform
-from src.models.coatnet import MyCoAtNet
-from src.models.moat import MOAT
+from constants.evaluation import PROMPT_ALPHANUM, PROMPT_ALL, TARGET_SENTENCES, TARGET_WORDS
+from utils.loading import AudioDataset, normalize_waveform
+from models.coatnet import MyCoAtNet
+from models.moat import MOAT
 
 np.random.seed(42)
 

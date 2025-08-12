@@ -3,7 +3,7 @@ import csv
 import torchaudio
 import torch
 from tqdm import tqdm
-from src.constants.loading import DATASET_GROUPS, ALPHANUMERIC_KEYS, EXCLUDED_KEYS
+from constants.loading import DATASET_GROUPS, ALPHANUMERIC_KEYS, EXCLUDED_KEYS
 
 
 def load_waveform_stats(special_keys=False):

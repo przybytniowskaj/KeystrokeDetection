@@ -8,8 +8,8 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 from torchaudio.transforms import TimeMasking, FrequencyMasking, MelSpectrogram, TimeStretch
 import torch.nn.functional as F
-from src.utils.stats import load_waveform_stats, DATASET_GROUPS, EXCLUDED_KEYS
-from src.constants.loading import TEST_DATASETS
+from utils.stats import load_waveform_stats, DATASET_GROUPS, EXCLUDED_KEYS
+from constants.loading import TEST_DATASETS
 
 import warnings
 warnings.filterwarnings('ignore')
