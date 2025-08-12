@@ -15,6 +15,7 @@ MODELS = {
     "moat": MOAT,
 }
 
+
 def separate_parameters(model):
     parameters_decay = set()
     parameters_no_decay = set()
@@ -37,6 +38,7 @@ def separate_parameters(model):
     assert len(parameters_decay) + len(parameters_no_decay) == len(list(model.parameters()))
 
     return parameters_decay, parameters_no_decay
+
 
 def init_linear(m):
     if isinstance(m, (torch.nn.Conv2d, torch.nn.Linear)):
@@ -85,6 +87,7 @@ def calculate_accuracy(outputs, labels):
     _, preds = torch.max(outputs, 1)
     corrects = torch.sum(preds == labels.data).item()
     return corrects
+
 
 def calculate_top_k_accuracy(outputs, labels, k):
     _, preds = outputs.topk(k, 1, True, True)

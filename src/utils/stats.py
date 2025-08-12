@@ -3,16 +3,8 @@ import csv
 import torchaudio
 import torch
 from tqdm import tqdm
+from src.constants.loading import DATASET_GROUPS, ALPHANUMERIC_KEYS, EXCLUDED_KEYS
 
-DATASET_GROUPS = {
-    'all_w_custom': ['mka', 'practical', 'noiseless', 'custom_mac'],
-    'all_w_custom_noisy': ['mka', 'practical', 'noiseless', 'custom_mac', 'custom_dishwasher', 'custom_open_window', 'custom_washing_machine'],
-    'all': ['mka', 'practical', 'noiseless'],
-    'custom_noisy': ['custom_dishwasher', 'custom_open_window', 'custom_washing_machine'],
-    'custom': ['custom_mac', 'custom_dishwasher', 'custom_open_window', 'custom_washing_machine'],
-}
-EXCLUDED_KEYS = set(['fn', 'start'])
-ALPHANUMERIC_KEYS = set('abcdefghijklmnopqrstuvwxyz0123456789')
 
 def load_waveform_stats(special_keys=False):
     path = 'data/final/waveform_stats_all.csv' if special_keys else 'data/final/waveform_stats_alnum.csv'
@@ -25,6 +17,7 @@ def load_waveform_stats(special_keys=False):
                 'std': float(row['std'])
             }
     return stats
+
 
 def compute_stats(dataset_root, DATASET_GROUPS, filter_fn=None):
     dataset_means_stds = {}

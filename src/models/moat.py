@@ -565,6 +565,5 @@ class MOAT(nn.Module):
         for moat in self.MOAT2:
             output = moat(output)
 
-
         output = self.forward_head(output)
         return output

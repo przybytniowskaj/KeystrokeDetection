@@ -12,8 +12,8 @@ wandb.login()
 from omegaconf import DictConfig, OmegaConf
 from PIL import Image
 
-from utils.data_loading_utils import get_all_dataloaders, DATASET_GROUPS
-from utils.train_eval_utils import MODELS, train_epoch, evaluate_model, init_linear, separate_parameters, save_confusion_matrix
+from src.utils.loading import get_all_dataloaders, DATASET_GROUPS
+from src.utils.train_eval import MODELS, train_epoch, evaluate_model, init_linear, separate_parameters, save_confusion_matrix
 
 OPTIMIZERS = {
     'adam': torch.optim.Adam,
@@ -34,6 +34,7 @@ ROOT_DIR = '/home/julia_przybytniowska_jp/KeystrokeDetection'
 DATA_DIR = '/data/final'
 
 torchaudio.set_audio_backend('soundfile')
+
 
 @hydra.main(config_path='../configs', config_name='config')
 def train(cfg: DictConfig):

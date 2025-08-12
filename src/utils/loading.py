@@ -8,28 +8,12 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 from torchaudio.transforms import TimeMasking, FrequencyMasking, MelSpectrogram, TimeStretch
 import torch.nn.functional as F
-from utils.data_stats_utils import load_waveform_stats, DATASET_GROUPS, EXCLUDED_KEYS
+from src.utils.stats import load_waveform_stats, DATASET_GROUPS, EXCLUDED_KEYS
+from src.constants.loading import TEST_DATASETS
 
 import warnings
 warnings.filterwarnings('ignore')
 
-MAP = {
-            'lctrl': 'ctrl',
-            'lcmd': 'cmd',
-            'lalt': 'alt',
-            'lshift': 'shift',
-            'ralt': 'alt',
-            'rctrl': 'ctrl',
-            'rshift': 'shift',
-            'rcmd': 'cmd',
-            'bracketclose': 'bracket',
-            'bracketopen': 'bracket'
-        }
-
-TEST_DATASETS = [
-    'practical', 'noiseless', 'mka', 'custom_mac', 'custom_dishwasher', 'custom_open_window',
-    'custom_washing_machine'
-] #+ list(DATASET_GROUPS.keys())
 
 def normalize_waveform(waveform, dataset_name, special_keys=False):
     stats = load_waveform_stats(special_keys)
@@ -39,7 +23,6 @@ def normalize_waveform(waveform, dataset_name, special_keys=False):
     mean = stats[dataset_name]['mean']
     std = stats[dataset_name]['std']
     return (waveform - mean) / std
-
 
 
 class TimeShifting():
@@ -110,18 +93,6 @@ class RandomTimeStretch:
             return self.time_stretch_2(spectrogram).to(torch.float32)
         return spectrogram
 
-# MAP = {
-#             'lctrl': 'ctrl',
-#             'lcmd': 'cmd',
-#             'lalt': 'alt',
-#             'lshift': 'shift',
-#             'ralt': 'alt',
-#             'rctrl': 'ctrl',
-#             'rshift': 'shift',
-#             'rcmd': 'cmd',
-#             'bracketclose': 'bracket',
-#             'bracketopen': 'bracket'
-#         }
 
 class AudioDataset(Dataset):
     def __init__(self, root, dataset, transform_aug=False, special_keys=False, class_idx=None,
@@ -173,7 +144,6 @@ class AudioDataset(Dataset):
             self.classes = class_idx.keys()
 
         self.file_paths = self._get_file_paths()
-
 
     def get_classes(self, exclude_few_special_keys):
         special = set(['apos', 'backslash', 'bracketclose', 'bracketopen', 'caps', 'comma', 'delete', 'fn', 'start',

@@ -9,7 +9,7 @@ import warnings
 from tqdm import tqdm
 from pydub import AudioSegment
 from pydub.silence import detect_leading_silence
-from src.utils.segmentation_constants import LABEL_MAP, DATASET_CONFIG
+from src.constants.segmentation import LABEL_MAP, DATASET_CONFIG
 
 random.seed(42)
 
