@@ -12,8 +12,8 @@ wandb.login()
 from omegaconf import DictConfig, OmegaConf
 from PIL import Image
 
-from src.utils.loading import get_all_dataloaders, DATASET_GROUPS
-from src.utils.train_eval import MODELS, train_epoch, evaluate_model, init_linear, separate_parameters, save_confusion_matrix
+from utils.loading import get_all_dataloaders, DATASET_GROUPS
+from utils.train_eval import MODELS, train_epoch, evaluate_model, init_linear, separate_parameters, save_confusion_matrix
 
 OPTIMIZERS = {
     'adam': torch.optim.Adam,
