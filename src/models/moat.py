@@ -526,6 +526,31 @@ class MOAT(nn.Module):
                       norm_layer_transformer=norm_layer_transformer,
                       use_se=False)
             for i in range(depths[3])])
+        if len(depths) == 5:
+            self.MOAT3 = nn.ModuleList([
+                MOATBlock(
+                    in_channels=channels[3] if i == 0 else channels[4],
+                    out_channels=channels[4],
+                    partition_function=window_partition,
+                    reverse_function=window_reverse,
+                    img_size=(self.H // 64, self.W // 64),
+                    num_heads=num_heads,
+                    use_window=use_window,
+                    window_size=(window_size, window_size),
+                    downscale=i == 0,
+                    attn_drop=attn_drop,
+                    drop=drop,
+                    drop_path=dpr[i + depths[0] + depths[1] + depths[2] + depths[3]],
+                    act_layer=act_layer,
+                    norm_layer=norm_layer,
+                    norm_layer_transformer=norm_layer_transformer,
+                    use_se=False
+                )
+                for i in range(depths[4])
+            ])
+        else:
+            self.MOAT3 = None
+
         self.global_pool: str = global_pool
         self.head = nn.Linear(channels[-1], num_classes)
 
@@ -564,6 +589,9 @@ class MOAT(nn.Module):
             output = moat(output)
         for moat in self.MOAT2:
             output = moat(output)
+        if self.MOAT3 is not None:
+            for moat in self.MOAT3:
+                output = moat(output)
 
         output = self.forward_head(output)
         return output
