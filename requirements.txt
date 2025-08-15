@@ -14,3 +14,4 @@ soundfile==0.13.1
 timm==0.6.13
 noisereduce==3.0.3
 Levenshtein==0.27.1
+ruff==0.12.9
