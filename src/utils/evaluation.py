@@ -11,7 +11,12 @@ import torchaudio
 from Levenshtein import distance
 from google import genai
 
-from constants.evaluation import PROMPT_ALPHANUM, PROMPT_ALL, TARGET_SENTENCES, TARGET_WORDS
+from constants.evaluation import (
+    PROMPT_ALPHANUM,
+    PROMPT_ALL,
+    TARGET_SENTENCES,
+    TARGET_WORDS,
+)
 from utils.loading import AudioDataset, normalize_waveform
 from models.coatnet import MyCoAtNet
 from models.moat import MOAT
@@ -49,32 +54,38 @@ def predict_file(model, test_dataset, file_path):
 
 
 def process_sentences_with_model(data_root, model_root, model_name):
-    keys = model_name.split('_')
+    keys = model_name.split("_")
     model_type = keys[0]
     checkpoint_path = f"{model_root}/{model_type}/{model_name}/model_checkpoints/"
     config_path = f"{model_root}/{model_type}/{model_name}/config.json"
 
-    with open(config_path, 'r') as f:
+    with open(config_path, "r") as f:
         config = json.load(f)
 
-    model_name_in_config = config['model']
-    model_params = config['model_params']
-    if model_type == 'coatnet':
-        config['image_size'] = 64
-        config['model_configs'][model_type][model_params]['image_size'] = 64
-    elif model_type == 'moat':
-        config['img_size'] = 128
-        config['model_configs'][model_type][model_params]['img_size'] = 128
-    special_keys = config.get('special_keys', False)
+    model_name_in_config = config["model"]
+    model_params = config["model_params"]
+    if model_type == "coatnet":
+        config["image_size"] = 64
+        config["model_configs"][model_type][model_params]["image_size"] = 64
+    elif model_type == "moat":
+        config["img_size"] = 128
+        config["model_configs"][model_type][model_params]["img_size"] = 128
+    special_keys = config.get("special_keys", False)
 
     checkpoint_file = os.path.join(checkpoint_path, os.listdir(checkpoint_path)[0])
-    checkpoint = torch.load(checkpoint_file, map_location='cpu')
+    checkpoint = torch.load(checkpoint_file, map_location="cpu")
 
-    num_classes = len(config['class_encoding'])
-    if model_type == 'coatnet':
-        model = MyCoAtNet(num_classes=num_classes, **config['model_configs'][model_name_in_config][model_params])
-    elif model_type == 'moat':
-        model = MOAT(num_classes=num_classes, **config['model_configs'][model_name_in_config][model_params])
+    num_classes = len(config["class_encoding"])
+    if model_type == "coatnet":
+        model = MyCoAtNet(
+            num_classes=num_classes,
+            **config["model_configs"][model_name_in_config][model_params],
+        )
+    elif model_type == "moat":
+        model = MOAT(
+            num_classes=num_classes,
+            **config["model_configs"][model_name_in_config][model_params],
+        )
     else:
         raise ValueError(f"Unsupported model type: {model_type}")
     model.load_state_dict(checkpoint)
@@ -82,13 +93,13 @@ def process_sentences_with_model(data_root, model_root, model_name):
 
     test_dataset = AudioDataset(
         root=data_root,
-        dataset=config['dataset'],
+        dataset=config["dataset"],
         transform_aug=False,
         special_keys=special_keys,
-        image_size=config['image_size'],
+        image_size=config["image_size"],
         exclude_few_special_keys=True,
         sample_rate=22000,
-        class_idx=config['class_encoding'],
+        class_idx=config["class_encoding"],
     )
 
     idx_to_class = {idx: cls for cls, idx in test_dataset.class_to_idx.items()}
@@ -189,22 +200,21 @@ def enhance_predictions_with_llm(results, model_name="gemini", temperature=0.0):
                 )
                 model_output = response.text
             elif model_name == "gpt-oss":
-                input_data = {
-                    "model": gpt_model,
-                    "input": prompt
-                }
+                input_data = {"model": gpt_model, "input": prompt}
                 # print(input_data)
                 response = requests.post(
                     f"https://api.cloudflare.com/client/v4/accounts/{os.getenv('CLOUDFLARE_ACCOUNT_ID')}/ai/v1/responses",
-                    headers={"Authorization": f"Bearer {os.getenv('CLOUDFLARE_API_KEY')}"},
-                    json=input_data
+                    headers={
+                        "Authorization": f"Bearer {os.getenv('CLOUDFLARE_API_KEY')}"
+                    },
+                    json=input_data,
                 ).json()
                 model_output = response.get("output", {})[-1]
                 model_output = model_output.get("content", {})[0]
                 model_output = model_output.get("text", "")
 
             if model_output.startswith("```"):
-                model_output = model_output.lstrip('```json').rstrip('```')
+                model_output = model_output.lstrip("```json").rstrip("```")
 
             try:
                 final_prediction = ast.literal_eval(model_output)
@@ -239,32 +249,42 @@ def format_results_as_dataframe(results):
     """
     data = []
     for sentence, result in results.items():
-        word_keypresses = " ".join(["".join(word) for word in result["word_keypresses"]])
+        word_keypresses = " ".join(
+            ["".join(word) for word in result["word_keypresses"]]
+        )
         raw_keypresses = result["word_keypresses"]
-        word_predictions = " ".join(["".join(word) for word in result["word_predictions"]])
+        word_predictions = " ".join(
+            ["".join(word) for word in result["word_predictions"]]
+        )
         raw_predictions = result["word_predictions"]
-        gemini_final_prediction = " ".join(["".join(word) for word in result.get("gemini_final_prediction", [])])
+        gemini_final_prediction = " ".join(
+            ["".join(word) for word in result.get("gemini_final_prediction", [])]
+        )
         gemini_raw_predictions = result.get("gemini_final_prediction", [])
-        gpt_final_prediction = " ".join(["".join(word) for word in result.get("gpt-oss_final_prediction", [])])
+        gpt_final_prediction = " ".join(
+            ["".join(word) for word in result.get("gpt-oss_final_prediction", [])]
+        )
         gpt_raw_prediction = result.get("gpt-oss_final_prediction", [])
         levenshtein_distance = result["levenshtein_distance"]
         gemini_levenshtein_distance = result.get("gemini_levenshtein_distance", None)
         gpt_levenshtein_distance = result.get("gpt-oss_levenshtein_distance", None)
 
-        data.append({
-            "Sentence": sentence,
-            "Keypresses": word_keypresses,
-            "Raw Keypresses": raw_keypresses,
-            "Predictions": word_predictions,
-            "Raw Predictions": raw_predictions,
-            "Gemini Final Prediction": gemini_final_prediction,
-            "Gemini Raw Prediction": gemini_raw_predictions,
-            "GPT Final Prediction": gpt_final_prediction,
-            "GPT Raw Prediction": gpt_raw_prediction,
-            "Levenshtein Distance": levenshtein_distance,
-            "Gemini Levenshtein Distance": gemini_levenshtein_distance,
-            "GPT Levenshtein Distance": gpt_levenshtein_distance
-        })
+        data.append(
+            {
+                "Sentence": sentence,
+                "Keypresses": word_keypresses,
+                "Raw Keypresses": raw_keypresses,
+                "Predictions": word_predictions,
+                "Raw Predictions": raw_predictions,
+                "Gemini Final Prediction": gemini_final_prediction,
+                "Gemini Raw Prediction": gemini_raw_predictions,
+                "GPT Final Prediction": gpt_final_prediction,
+                "GPT Raw Prediction": gpt_raw_prediction,
+                "Levenshtein Distance": levenshtein_distance,
+                "Gemini Levenshtein Distance": gemini_levenshtein_distance,
+                "GPT Levenshtein Distance": gpt_levenshtein_distance,
+            }
+        )
 
     return pd.DataFrame(data)
 
@@ -306,32 +326,36 @@ def format_sentence_results_as_dataframe(results):
     """
     data = []
     for sentence, result in results.items():
-        raw_keypresses = result['keypresses']
+        raw_keypresses = result["keypresses"]
         keypresses = process_keys(result["keypresses"])
         raw_predictions = result.get("predictions", [])
         predictions = process_keys(result["predictions"])
         gemini_raw_predictions = result.get("gemini_final_prediction", [])
-        gemini_final_prediction = process_keys(result.get("gemini_final_prediction", []))
+        gemini_final_prediction = process_keys(
+            result.get("gemini_final_prediction", [])
+        )
         gpt_raw_prediction = result.get("gpt-oss_final_prediction", [])
         gpt_final_prediction = process_keys(result.get("gpt-oss_final_prediction", []))
         levenshtein_distance = result["levenshtein_distance"]
         gemini_levenshtein_distance = result.get("gemini_levenshtein_distance", None)
         gpt_levenshtein_distance = result.get("gpt-oss_levenshtein_distance", None)
 
-        data.append({
-            "Sentence": sentence,
-            "Keypresses": keypresses,
-            "Raw Keypresses": raw_keypresses,
-            "Predictions": predictions,
-            "Raw Predictions": raw_predictions,
-            "Gemini Final Prediction": gemini_final_prediction,
-            "Gemini Raw Prediction": gemini_raw_predictions,
-            "GPT Final Prediction": gpt_final_prediction,
-            "GPT Raw Prediction": gpt_raw_prediction,
-            "Levenshtein Distance": levenshtein_distance,
-            "Gemini Levenshtein Distance": gemini_levenshtein_distance,
-            "GPT Levenshtein Distance": gpt_levenshtein_distance
-        })
+        data.append(
+            {
+                "Sentence": sentence,
+                "Keypresses": keypresses,
+                "Raw Keypresses": raw_keypresses,
+                "Predictions": predictions,
+                "Raw Predictions": raw_predictions,
+                "Gemini Final Prediction": gemini_final_prediction,
+                "Gemini Raw Prediction": gemini_raw_predictions,
+                "GPT Final Prediction": gpt_final_prediction,
+                "GPT Raw Prediction": gpt_raw_prediction,
+                "Levenshtein Distance": levenshtein_distance,
+                "Gemini Levenshtein Distance": gemini_levenshtein_distance,
+                "GPT Levenshtein Distance": gpt_levenshtein_distance,
+            }
+        )
 
     return pd.DataFrame(data)
 

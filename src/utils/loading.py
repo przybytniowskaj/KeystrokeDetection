@@ -6,26 +6,32 @@ import torchaudio
 import noisereduce as nr
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
-from torchaudio.transforms import TimeMasking, FrequencyMasking, MelSpectrogram, TimeStretch
+from torchaudio.transforms import (
+    TimeMasking,
+    FrequencyMasking,
+    MelSpectrogram,
+    TimeStretch,
+)
 import torch.nn.functional as F
 from utils.stats import load_waveform_stats, DATASET_GROUPS, EXCLUDED_KEYS
 from constants.loading import TEST_DATASETS
 
 import warnings
-warnings.filterwarnings('ignore')
+
+warnings.filterwarnings("ignore")
 
 
 def normalize_waveform(waveform, dataset_name, special_keys=False):
     stats = load_waveform_stats(special_keys)
     if dataset_name not in stats:
-        raise ValueError(f'No stats found for dataset key: {dataset_name}')
+        raise ValueError(f"No stats found for dataset key: {dataset_name}")
 
-    mean = stats[dataset_name]['mean']
-    std = stats[dataset_name]['std']
+    mean = stats[dataset_name]["mean"]
+    std = stats[dataset_name]["std"]
     return (waveform - mean) / std
 
 
-class TimeShifting():
+class TimeShifting:
     def __call__(self, samples):
         samples = samples.numpy()
         shift = int(samples.shape[1] * 0.3)
@@ -95,8 +101,18 @@ class RandomTimeStretch:
 
 
 class AudioDataset(Dataset):
-    def __init__(self, root, dataset, transform_aug=False, special_keys=False, class_idx=None,
-                 image_size=64, exclude_few_special_keys=False, sample_rate=22000, noise_reduction=False):
+    def __init__(
+        self,
+        root,
+        dataset,
+        transform_aug=False,
+        special_keys=False,
+        class_idx=None,
+        image_size=64,
+        exclude_few_special_keys=False,
+        sample_rate=22000,
+        noise_reduction=False,
+    ):
         self.image_size = image_size
         self.sample_rate = sample_rate
         self.dataset = dataset
@@ -104,41 +120,75 @@ class AudioDataset(Dataset):
         self.noise_reduction = noise_reduction
         self.data_folders = DATASET_GROUPS.get(self.dataset, [self.dataset])
 
-        transformations_short = transforms.Compose([
-            MelSpectrogram(self.sample_rate, n_mels=self.image_size, n_fft=512, hop_length=512//4),
-            lambda x: pad_spectrogram(x, target_size=self.image_size),
-        ])
-        transformations_w_aug_short = transforms.Compose([
-            MelSpectrogram(self.sample_rate, n_mels=self.image_size, n_fft=512, hop_length=512//4),
-            RandomTimeStretch(p=0.8, n_freq=self.image_size),
-            lambda x: pad_spectrogram(x, target_size=self.image_size),
-            RandomFrequencyMasking(p=0.4),
-            RandomTimeMasking(time_mask_param=np.random.uniform(1, 4), p=0.4),
-            RandomFrequencyMasking(freq_mask_param=np.random.uniform(1, 5), p=0.4),
-            RandomTimeMasking(time_mask_param=np.random.uniform(1, 6), p=0.4),
-        ])
-        self.transform_short = transformations_w_aug_short if transform_aug else transformations_short
+        transformations_short = transforms.Compose(
+            [
+                MelSpectrogram(
+                    self.sample_rate,
+                    n_mels=self.image_size,
+                    n_fft=512,
+                    hop_length=512 // 4,
+                ),
+                lambda x: pad_spectrogram(x, target_size=self.image_size),
+            ]
+        )
+        transformations_w_aug_short = transforms.Compose(
+            [
+                MelSpectrogram(
+                    self.sample_rate,
+                    n_mels=self.image_size,
+                    n_fft=512,
+                    hop_length=512 // 4,
+                ),
+                RandomTimeStretch(p=0.8, n_freq=self.image_size),
+                lambda x: pad_spectrogram(x, target_size=self.image_size),
+                RandomFrequencyMasking(p=0.4),
+                RandomTimeMasking(time_mask_param=np.random.uniform(1, 4), p=0.4),
+                RandomFrequencyMasking(freq_mask_param=np.random.uniform(1, 5), p=0.4),
+                RandomTimeMasking(time_mask_param=np.random.uniform(1, 6), p=0.4),
+            ]
+        )
+        self.transform_short = (
+            transformations_w_aug_short if transform_aug else transformations_short
+        )
 
-        transformations_long = transforms.Compose([
-            MelSpectrogram(self.sample_rate, n_mels=self.image_size, n_fft=1024, hop_length=1024//4),
-            lambda x: pad_spectrogram(x, target_size=self.image_size),
-        ])
-        transformations_w_aug_long = transforms.Compose([
-            MelSpectrogram(self.sample_rate, n_mels=self.image_size, n_fft=1024, hop_length=1024//4),
-            RandomTimeStretch(p=0.8, n_freq=self.image_size),
-            lambda x: pad_spectrogram(x, target_size=self.image_size),
-            RandomFrequencyMasking(p=0.4),
-            RandomTimeMasking(time_mask_param=np.random.uniform(1, 4), p=0.4),
-            RandomFrequencyMasking(freq_mask_param=np.random.uniform(1, 5), p=0.4),
-            RandomTimeMasking(time_mask_param=np.random.uniform(1, 6), p=0.4),
-        ])
-        self.transform_long = transformations_w_aug_long if transform_aug else transformations_long
+        transformations_long = transforms.Compose(
+            [
+                MelSpectrogram(
+                    self.sample_rate,
+                    n_mels=self.image_size,
+                    n_fft=1024,
+                    hop_length=1024 // 4,
+                ),
+                lambda x: pad_spectrogram(x, target_size=self.image_size),
+            ]
+        )
+        transformations_w_aug_long = transforms.Compose(
+            [
+                MelSpectrogram(
+                    self.sample_rate,
+                    n_mels=self.image_size,
+                    n_fft=1024,
+                    hop_length=1024 // 4,
+                ),
+                RandomTimeStretch(p=0.8, n_freq=self.image_size),
+                lambda x: pad_spectrogram(x, target_size=self.image_size),
+                RandomFrequencyMasking(p=0.4),
+                RandomTimeMasking(time_mask_param=np.random.uniform(1, 4), p=0.4),
+                RandomFrequencyMasking(freq_mask_param=np.random.uniform(1, 5), p=0.4),
+                RandomTimeMasking(time_mask_param=np.random.uniform(1, 6), p=0.4),
+            ]
+        )
+        self.transform_long = (
+            transformations_w_aug_long if transform_aug else transformations_long
+        )
 
         self.all_classes = self.get_classes(exclude_few_special_keys)
         self.classes = self.all_classes[0] if not special_keys else self.all_classes[1]
         # self.classes = self.all_classes[0] if not special_keys else self.all_classes[2]
         if class_idx is None:
-            self.class_to_idx = {cls_name: idx for idx, cls_name in enumerate(self.classes)}
+            self.class_to_idx = {
+                cls_name: idx for idx, cls_name in enumerate(self.classes)
+            }
         else:
             self.class_to_idx = class_idx
             self.classes = class_idx.keys()
@@ -146,9 +196,43 @@ class AudioDataset(Dataset):
         self.file_paths = self._get_file_paths()
 
     def get_classes(self, exclude_few_special_keys):
-        special = set(['apos', 'backslash', 'bracketclose', 'bracketopen', 'caps', 'comma', 'delete', 'fn', 'start',
-        'dot', 'down', 'enter', 'equal', 'esc', 'lctrl', 'lcmd', 'lalt', 'left', 'lshift', 'ralt', 'rcmd',
-        'rctrl', 'rshift', 'right', 'semicolon', 'slash', 'space', 'start', 'tab', 'up', 'dash', 'cmd', 'ctrl'])
+        special = set(
+            [
+                "apos",
+                "backslash",
+                "bracketclose",
+                "bracketopen",
+                "caps",
+                "comma",
+                "delete",
+                "fn",
+                "start",
+                "dot",
+                "down",
+                "enter",
+                "equal",
+                "esc",
+                "lctrl",
+                "lcmd",
+                "lalt",
+                "left",
+                "lshift",
+                "ralt",
+                "rcmd",
+                "rctrl",
+                "rshift",
+                "right",
+                "semicolon",
+                "slash",
+                "space",
+                "start",
+                "tab",
+                "up",
+                "dash",
+                "cmd",
+                "ctrl",
+            ]
+        )
         excluded = EXCLUDED_KEYS if exclude_few_special_keys else set()
 
         all_classes = []
@@ -162,13 +246,15 @@ class AudioDataset(Dataset):
         all_classes = [cls_name for cls_name in all_classes if cls_name not in excluded]
         # mapped_classes = [MAP.get(key, key) for key in all_classes]
 
-        return sorted(classes), sorted(all_classes)#, sorted(np.unique(mapped_classes))
+        return sorted(classes), sorted(
+            all_classes
+        )  # , sorted(np.unique(mapped_classes))
 
     def _get_file_paths(self):
         paths = []
 
         for data in self.data_folders:
-            for cls_name in self.classes: #to be fixed
+            for cls_name in self.classes:  # to be fixed
                 # mapped_classes = [k for k, v in MAP.items() if v == cls_name] + [cls_name]
                 # for key in mapped_classes:
                 folder = os.path.join(self.root, data, cls_name)
@@ -205,21 +291,23 @@ class AudioDataset(Dataset):
 
 def get_all_dataloaders(cfg, ROOT_DIR, DATA_DIR):
     train_dataset = AudioDataset(
-        ROOT_DIR + DATA_DIR + '/train', cfg.dataset,
+        ROOT_DIR + DATA_DIR + "/train",
+        cfg.dataset,
         transform_aug=cfg.transform_aug,
         special_keys=cfg.special_keys,
         exclude_few_special_keys=cfg.exclude_few_special_keys,
-        image_size=cfg.image_size
+        image_size=cfg.image_size,
     )
     num_classes = len(train_dataset.classes)
     class_encoding = train_dataset.class_to_idx
 
     val_dataset = AudioDataset(
-        ROOT_DIR + DATA_DIR + '/val', cfg.dataset,
+        ROOT_DIR + DATA_DIR + "/val",
+        cfg.dataset,
         transform_aug=False,
         special_keys=cfg.special_keys,
         exclude_few_special_keys=cfg.exclude_few_special_keys,
-        image_size=cfg.image_size
+        image_size=cfg.image_size,
     )
     # batch_size = cfg.batch_size
     batch_size = len(train_dataset) // 10
@@ -230,19 +318,20 @@ def get_all_dataloaders(cfg, ROOT_DIR, DATA_DIR):
     test_loaders = {}
     for name in TEST_DATASETS:
         dataset = AudioDataset(
-            ROOT_DIR + DATA_DIR + '/test', name,
+            ROOT_DIR + DATA_DIR + "/test",
+            name,
             transform_aug=False,
             special_keys=cfg.special_keys,
             class_idx=train_dataset.class_to_idx,
             exclude_few_special_keys=cfg.exclude_few_special_keys,
-            image_size=cfg.image_size
+            image_size=cfg.image_size,
         )
         test_loaders[name] = DataLoader(dataset, batch_size=batch_size, shuffle=False)
 
     all_loaders = {
-        'train': train_loader,
-        'val': val_loader,
-        'test': test_loaders,
+        "train": train_loader,
+        "val": val_loader,
+        "test": test_loaders,
     }
 
     return all_loaders, num_classes, class_encoding, batch_size

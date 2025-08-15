@@ -2,9 +2,6 @@ import torch
 import torch.nn as nn
 import math
 from torchvision.ops import SqueezeExcitation
-import torchaudio
-from torch.utils.data import Dataset
-import os
 
 
 class Stem(nn.Sequential):
@@ -13,7 +10,7 @@ class Stem(nn.Sequential):
             nn.Conv2d(1, out_channels, kernel_size=3, stride=2, padding=1),
             nn.BatchNorm2d(out_channels),
             nn.GELU(),
-            nn.Conv2d(out_channels, out_channels, kernel_size=3)
+            nn.Conv2d(out_channels, out_channels, kernel_size=3),
         )
 
 
@@ -25,12 +22,20 @@ class MBConv(nn.Module):
             nn.Conv2d(in_channels, in_channels * expansion_factor, kernel_size=1),
             nn.BatchNorm2d(in_channels * expansion_factor),
             nn.GELU(),
-            nn.Conv2d(in_channels * expansion_factor, in_channels * expansion_factor, kernel_size=3, padding=1, groups=in_channels * expansion_factor),
+            nn.Conv2d(
+                in_channels * expansion_factor,
+                in_channels * expansion_factor,
+                kernel_size=3,
+                padding=1,
+                groups=in_channels * expansion_factor,
+            ),
             nn.BatchNorm2d(in_channels * expansion_factor),
             nn.GELU(),
-            SqueezeExcitation(in_channels * expansion_factor, in_channels, activation=nn.GELU),
+            SqueezeExcitation(
+                in_channels * expansion_factor, in_channels, activation=nn.GELU
+            ),
             nn.Conv2d(in_channels * expansion_factor, out_channels, kernel_size=1),
-            nn.BatchNorm2d(out_channels)
+            nn.BatchNorm2d(out_channels),
         )
 
     def forward(self, x):
@@ -40,8 +45,12 @@ class MBConv(nn.Module):
 class DownsamplingMBConv(MBConv):
     def __init__(self, in_channels, out_channels, expansion_factor=4):
         super().__init__(in_channels, out_channels, expansion_factor=4)
-        self.mb_conv[1] = nn.Conv2d(in_channels, in_channels * expansion_factor, kernel_size=1, stride = 2)
-        self.channel_projection = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, bias=False)
+        self.mb_conv[1] = nn.Conv2d(
+            in_channels, in_channels * expansion_factor, kernel_size=1, stride=2
+        )
+        self.channel_projection = nn.Conv2d(
+            in_channels, out_channels, kernel_size=1, stride=1, bias=False
+        )
         self.pool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
 
     def forward(self, x):
@@ -64,13 +73,16 @@ class RelativeAttention2d(nn.Module):
         self.to_k = nn.Linear(in_channels, self.head_dim)
         self.to_v = nn.Linear(in_channels, self.head_dim)
         self.to_output = nn.Sequential(
-            nn.Linear(self.head_dim, out_channels),
-            nn.Dropout(0.3)
+            nn.Linear(self.head_dim, out_channels), nn.Dropout(0.3)
         )
         self.normalization = nn.LayerNorm(in_channels)
 
-        self.relative_bias = nn.Parameter(torch.randn(heads, (2 * image_size - 1) * (2 * image_size - 1)))
-        self.register_buffer("relative_indices", self.get_indices(image_size, image_size))
+        self.relative_bias = nn.Parameter(
+            torch.randn(heads, (2 * image_size - 1) * (2 * image_size - 1))
+        )
+        self.register_buffer(
+            "relative_indices", self.get_indices(image_size, image_size)
+        )
         self.precomputed_relative_bias = None
 
     def norm(self, x):
@@ -85,7 +97,9 @@ class RelativeAttention2d(nn.Module):
             return self.precomputed_relative_bias
         indices = self.relative_indices.expand(self.heads, -1)
         rel_pos_enc = self.relative_bias.gather(-1, indices)
-        rel_pos_enc = rel_pos_enc.unflatten(-1, (self.image_size * self.image_size, self.image_size * self.image_size))
+        rel_pos_enc = rel_pos_enc.unflatten(
+            -1, (self.image_size * self.image_size, self.image_size * self.image_size)
+        )
         return rel_pos_enc
 
     def reshape_for_linear(self, x):
@@ -94,18 +108,26 @@ class RelativeAttention2d(nn.Module):
 
     def attention_score(self, x):
         b, _, h, _ = x.shape
-        q = self.to_q(self.reshape_for_linear(x)).view(b, self.heads, self.head_size, -1)
-        k = self.to_k(self.reshape_for_linear(x)).view(b, self.heads, self.head_size, -1)
+        q = self.to_q(self.reshape_for_linear(x)).view(
+            b, self.heads, self.head_size, -1
+        )
+        k = self.to_k(self.reshape_for_linear(x)).view(
+            b, self.heads, self.head_size, -1
+        )
         dots = torch.matmul(k.transpose(-1, -2), q) / math.sqrt(self.head_dim)
         relative_biases_indexed = self.get_relative_biases()
         return self.attend(dots + relative_biases_indexed)
 
     def relative_attention(self, x):
         b, _, _, _ = x.shape
-        v = self.to_v(self.reshape_for_linear(x)).view(b, self.heads, self.head_size, -1)
+        v = self.to_v(self.reshape_for_linear(x)).view(
+            b, self.heads, self.head_size, -1
+        )
         out = torch.matmul(v, self.attention_score(x))
         out = out.view(b, self.image_size, self.image_size, -1)
-        return self.to_output(out).view(b, self.out_channels, self.image_size, self.image_size)
+        return self.to_output(out).view(
+            b, self.out_channels, self.image_size, self.image_size
+        )
 
     def forward(self, x):
         return x + self.relative_attention(self.norm(x))
@@ -130,7 +152,9 @@ class RelativeAttention2d(nn.Module):
 class DownsamplingRelativeAttention2d(RelativeAttention2d):
     def __init__(self, in_channels, out_channels, image_size, heads=8, head_size=32):
         super().__init__(in_channels, out_channels, image_size, heads=8, head_size=32)
-        self.channel_projection = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, bias=False)
+        self.channel_projection = nn.Conv2d(
+            in_channels, out_channels, kernel_size=1, stride=1, bias=False
+        )
         self.pool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
         self.normalization = nn.LayerNorm(in_channels)
 
@@ -141,7 +165,10 @@ class DownsamplingRelativeAttention2d(RelativeAttention2d):
         return x
 
     def forward(self, x):
-        return self.channel_projection(self.pool(x)) + self.relative_attention(self.pool(self.norm(x)))
+        return self.channel_projection(self.pool(x)) + self.relative_attention(
+            self.pool(self.norm(x))
+        )
+
 
 class FeedForwardNetwork(nn.Module):
     def __init__(self, out_channels, expansion_factor=4):
@@ -152,7 +179,7 @@ class FeedForwardNetwork(nn.Module):
             nn.GELU(),
             nn.Dropout(0.3),
             nn.Linear(hidden_dim, out_channels),
-            nn.Dropout(0.3)
+            nn.Dropout(0.3),
         )
         self.normalization = nn.LayerNorm(out_channels)
         self.out_channels = out_channels
@@ -166,27 +193,26 @@ class FeedForwardNetwork(nn.Module):
     def forward(self, x):
         old_shape = x.shape
         batch_size = old_shape[0]
-        return x + torch.reshape(self.ffn(torch.reshape(self.norm(x), (batch_size, -1, self.out_channels))), old_shape)
+        return x + torch.reshape(
+            self.ffn(torch.reshape(self.norm(x), (batch_size, -1, self.out_channels))),
+            old_shape,
+        )
 
 
 class DownsampleTransformerBlock(nn.Sequential):
     def __init__(self, in_channels, out_channels, image_size):
-        attention = DownsamplingRelativeAttention2d(in_channels, out_channels, image_size)
-        ffn = FeedForwardNetwork(out_channels)
-        super().__init__(
-            attention,
-            ffn
+        attention = DownsamplingRelativeAttention2d(
+            in_channels, out_channels, image_size
         )
+        ffn = FeedForwardNetwork(out_channels)
+        super().__init__(attention, ffn)
 
 
 class TransformerBlock(nn.Sequential):
     def __init__(self, in_channels, out_channels, image_size):
         attention = RelativeAttention2d(in_channels, out_channels, image_size)
         ffn = FeedForwardNetwork(out_channels)
-        super().__init__(
-            attention,
-            ffn
-        )
+        super().__init__(attention, ffn)
 
 
 class Head(nn.Module):
@@ -217,23 +243,32 @@ class MyCoAtNet(nn.Sequential):
             s2.append(MBConv(layer_out_channels[2], layer_out_channels[2]))
         s2 = nn.Sequential(*s2)
 
-        s3 = [DownsampleTransformerBlock(layer_out_channels[2], layer_out_channels[3], image_size // 16)]
+        s3 = [
+            DownsampleTransformerBlock(
+                layer_out_channels[2], layer_out_channels[3], image_size // 16
+            )
+        ]
         for i in range(nums_blocks[3] - 1):
-            s3.append(TransformerBlock(layer_out_channels[3], layer_out_channels[3], image_size // 16))
+            s3.append(
+                TransformerBlock(
+                    layer_out_channels[3], layer_out_channels[3], image_size // 16
+                )
+            )
         s3 = nn.Sequential(*s3)
 
-        s4 = [DownsampleTransformerBlock(layer_out_channels[3], layer_out_channels[4], image_size // 32)]
+        s4 = [
+            DownsampleTransformerBlock(
+                layer_out_channels[3], layer_out_channels[4], image_size // 32
+            )
+        ]
         for i in range(nums_blocks[4] - 1):
-            s4.append(TransformerBlock(layer_out_channels[4], layer_out_channels[4], image_size // 32))
+            s4.append(
+                TransformerBlock(
+                    layer_out_channels[4], layer_out_channels[4], image_size // 32
+                )
+            )
         s4 = nn.Sequential(*s4)
 
         head = Head(layer_out_channels[4], num_classes)
 
-        super().__init__(
-            s0,
-            s1,
-            s2,
-            s3,
-            s4,
-            head
-        )
+        super().__init__(s0, s1, s2, s3, s4, head)

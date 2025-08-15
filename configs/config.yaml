@@ -26,12 +26,6 @@ model_configs:
       "image_size": ${image_size}
       "nums_blocks": [4, 6, 8, 10, 2]
       "layer_out_channels": [64, 192, 384, 512, 1024]
-  convmixer:
-    default: #3M
-      "dim": 512
-      "depth": 12
-      "kernel_size": 7
-      "patch_size": 16
   moat:
     default: #71M
       "img_size": ${image_size}
@@ -214,7 +208,7 @@ max_no_improvement: 50
 transform_aug: true
 transform: false
 seed: 42
-interim_results: "/Users/juliaprzybytniowska/Documents/Master Degree/Master Thesis/KeystrokeDetection/interim_results/"
+interim_results: "home/julia_przybytniowska_jp/interim_results/"
 project_name: "master-thesis"
 special_keys: false
 partial_wd: false

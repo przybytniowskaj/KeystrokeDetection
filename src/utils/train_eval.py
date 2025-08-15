@@ -4,13 +4,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.metrics import ConfusionMatrixDisplay, confusion_matrix
 from models.coatnet import MyCoAtNet
-from models.convmixer import ConvMixer
 from models.swin_transformer import SwinTransformer
 from models.moat import MOAT
 
 MODELS = {
     "coatnet": MyCoAtNet,
-    "convmixer": ConvMixer,
     "swintransformer": SwinTransformer,
     "moat": MOAT,
 }
@@ -35,7 +33,9 @@ def separate_parameters(model):
 
     # sanity check
     assert len(parameters_decay & parameters_no_decay) == 0
-    assert len(parameters_decay) + len(parameters_no_decay) == len(list(model.parameters()))
+    assert len(parameters_decay) + len(parameters_no_decay) == len(
+        list(model.parameters())
+    )
 
     return parameters_decay, parameters_no_decay
 
@@ -43,15 +43,18 @@ def separate_parameters(model):
 def init_linear(m):
     if isinstance(m, (torch.nn.Conv2d, torch.nn.Linear)):
         torch.nn.init.kaiming_normal_(m.weight)
-        if m.bias is not None: torch.nn.init.zeros_(m.bias)
+        if m.bias is not None:
+            torch.nn.init.zeros_(m.bias)
 
 
 def save_confusion_matrix(true_labels, predicted_labels, filename, classes):
     cm = confusion_matrix(true_labels, predicted_labels)
-    disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=classes )
+    disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=classes)
     fig, ax = plt.subplots(figsize=(20, 20))
     disp.plot(ax=ax, cmap="Blues")
-    ax.set_xticklabels(classes, rotation=45, ha='right', fontsize=9)  # Default fontsize is 10
+    ax.set_xticklabels(
+        classes, rotation=45, ha="right", fontsize=9
+    )  # Default fontsize is 10
     plt.savefig(filename)
 
 
@@ -118,7 +121,15 @@ def train_epoch(device, model, criterion, optimizer, train_loader):
     return [loss] + accuracies
 
 
-def evaluate_model(device, model, criterion, test_loader, save_cm=False, cm_path=None, class_encoding=None):
+def evaluate_model(
+    device,
+    model,
+    criterion,
+    test_loader,
+    save_cm=False,
+    cm_path=None,
+    class_encoding=None,
+):
     model.eval()
     running_loss = 0
     running_accuracies = [0] * 6
@@ -146,7 +157,9 @@ def evaluate_model(device, model, criterion, test_loader, save_cm=False, cm_path
         classes = np.union1d(classes, pred_classes)
         inv_class_encoding = {v: k for k, v in class_encoding.items()}
         encoded_classes = [inv_class_encoding.get(cls) for cls in classes]
-        save_confusion_matrix(true_labels, predictions, cm_path, classes=encoded_classes)
+        save_confusion_matrix(
+            true_labels, predictions, cm_path, classes=encoded_classes
+        )
 
     length = len(test_loader.dataset)
     loss = running_loss / length
