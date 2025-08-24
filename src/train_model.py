@@ -38,7 +38,7 @@ SCHEDULERS = {
     "ReduceLROnPlateau": torch.optim.lr_scheduler.ReduceLROnPlateau,
 }
 
-ROOT_DIR = "/home/julia_przybytniowska_jp/KeystrokeDetection"
+ROOT_DIR = "/mnt/evafs/groups/zychowski-lab/jprzybytniowska/KeystrokeDetection"
 DATA_DIR = "/data/final"
 
 torchaudio.set_audio_backend("soundfile")

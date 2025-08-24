@@ -311,7 +311,7 @@ def get_all_dataloaders(cfg, ROOT_DIR, DATA_DIR):
     )
     # batch_size = cfg.batch_size
     batch_size = len(train_dataset) // 10
-    batch_size = 2 ** (batch_size.bit_length() - 2)
+    batch_size = 2 ** (batch_size.bit_length() - 1)
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
