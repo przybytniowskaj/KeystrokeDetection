@@ -13,28 +13,26 @@
 #SBATCH --output=exp_logs/initial_swin_smaller-%A_%a.log
 #SBATCH --array=0-15
 
-
 script_path=$(readlink -f "$0")
 cat $script_path
 
 source /etc/environment
 
-source /mnt/evafs/groups/zychowski-lab/jprzybytniowska/miniconda3/etc/profile.d/conda.sh
-conda activate thesis
+source /mnt/evafs/groups/ganzha_23/jprzybytniowska/miniconda3/etc/profile.d/conda.sh
+conda activate llm
 echo $CONDA_DEFAULT_ENV
-
 
 wandb online
 export HYDRA_FULL_ERROR=1
+
 OPTIMIZERS=(adam)
-ARCHITECTURES=( default bigger) #big
-DECAYS=(0.05) #0.001 0.05
-LEARNING_RATES=( 0.0001 0.00005) # 0.0001 0.00001 0.00005
-SCHEDULERS=( chained CosineAnnealingLR ) #chained
-SPECIALKEYS=(false true) #false
-DATASETS=(all ) #  custom_noisy all all_w_custom
-LINEAR_INIT=(true) #  false
-# EXCLUDE_FEW_SP=(true)
+ARCHITECTURES=(default bigger)
+DECAYS=(0.05)
+LEARNING_RATES=(0.0001 0.00005)
+SCHEDULERS=(chained CosineAnnealingLR)
+SPECIALKEYS=(false true)
+DATASETS=(all)
+LINEAR_INIT=(true)
 
 PARAMS=($(python configs/return_unique_param_set.py -l "${LEARNING_RATES[@]}" -s "${SCHEDULERS[@]}" -o "${OPTIMIZERS[@]}" -w "${DECAYS[@]}" -a "${ARCHITECTURES[@]}" -k "${SPECIALKEYS[@]}" -d "${DATASETS[@]}" -b "${LINEAR_INIT[@]}" --id $SLURM_ARRAY_TASK_ID | tr -d '[],'))
 
@@ -46,16 +44,6 @@ ARCHITECTURE=${PARAMS[4]}
 SPECIALKEYS=${PARAMS[5]}
 DATASETS=${PARAMS[6]}
 LINEAR_INIT=${PARAMS[7]}
-# EXCLUDE_FEW_SP=${EXCLUDE_FEW_SP[0]}
-
-echo "LR: $LR"
-echo "SCHEDULER: $SCHEDULER"
-echo "OPTIMIZER: $OPTIMIZER"
-echo "DECAY: $DECAY"
-echo "ARCHITECTURE: $ARCHITECTURE"
-echo "SPECIALKEYS: $SPECIALKEYS"
-echo "DATASETS: $DATASETS"
-echo "LINEAR_INIT: $LINEAR_INIT"
 
 srun python src/train_model.py \
     ++lr=$LR ++optimizer=$OPTIMIZER \

@@ -26,12 +26,6 @@ model_configs:
       "image_size": ${image_size}
       "nums_blocks": [4, 6, 8, 10, 2]
       "layer_out_channels": [64, 192, 384, 512, 1024]
-  convmixer:
-    default: #3M
-      "dim": 512
-      "depth": 12
-      "kernel_size": 7
-      "patch_size": 16
   moat:
     default: #71M
       "img_size": ${image_size}
@@ -87,6 +81,14 @@ model_configs:
       "drop": 0.3
       "use_window": true
       "window_size": 16
+    bigger2:
+      "img_size": ${image_size}
+      "in_channels": 1
+      "embed_dim": 128
+      "depths": [3,5,7,9,3]
+      "channels": [128, 256, 512, 768, 1024]
+      "attn_drop": 0.3
+      "drop": 0.3
   swintransformer:
     default:
       "image_size": ${image_size}
@@ -122,12 +124,15 @@ model_configs:
       "embed_dim": 192
       "depths": [2, 4, 12, 2]
       "num_heads": [4, 8, 16, 24]
-      "window_size": 8
+      "window_size": 16
       "mlp_ratio": 4.0
       "qkv_bias": true
       "qk_scale": null
       "ape": false
       "patch_norm": true
+      "attn_drop_rate": 0.2
+      "drop_rate": 0.2
+
     small:
       "image_size": ${image_size}
       "patch_size": 4
@@ -176,7 +181,7 @@ scheduler_configs:
     gamma: 0.1
   CosineAnnealingLR:
     T_max: 20
-    eta_min: 0.000001
+    eta_min: 0.0000001
   OneCycleLR:
     total_steps: ${num_epochs}
     anneal_strategy: "cos"
@@ -184,7 +189,7 @@ scheduler_configs:
   CosineAnnealingWarmRestarts:
     T_0: 10
     T_mult: 2
-    eta_min: 0.000001
+    eta_min: 0.0000001
   ReduceLROnPlateau:
     mode: "min"
     factor: 0.1
