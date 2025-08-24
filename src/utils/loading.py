@@ -21,8 +21,8 @@ import warnings
 warnings.filterwarnings("ignore")
 
 
-def normalize_waveform(waveform, dataset_name, special_keys=False):
-    stats = load_waveform_stats(special_keys)
+def normalize_waveform(waveform, dataset_name, special_keys=False, root=None):
+    stats = load_waveform_stats(special_keys, root)
     if dataset_name not in stats:
         raise ValueError(f"No stats found for dataset key: {dataset_name}")
 

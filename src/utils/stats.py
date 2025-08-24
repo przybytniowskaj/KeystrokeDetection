@@ -6,13 +6,15 @@ from tqdm import tqdm
 from constants.loading import DATASET_GROUPS, ALPHANUMERIC_KEYS, EXCLUDED_KEYS
 
 
-def load_waveform_stats(special_keys=False):
+def load_waveform_stats(special_keys=False, root=None):
     path = (
         "data/final/waveform_stats_all.csv"
         if special_keys
         else "data/final/waveform_stats_alnum.csv"
     )
     stats = {}
+    if root:
+        path = os.path.join(root, path)
     with open(path, newline="") as csvfile:
         reader = csv.DictReader(csvfile)
         for row in reader:

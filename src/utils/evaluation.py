@@ -20,8 +20,11 @@ from constants.evaluation import (
 from utils.loading import AudioDataset, normalize_waveform
 from models.coatnet import MyCoAtNet
 from models.moat import MOAT
+from models.swin_transformer import SwinTransformer
 
 np.random.seed(42)
+
+ROOT = "/Users/juliaprzybytniowska/Documents/Master Degree/Master Thesis/KeystrokeDetection/"
 
 
 def get_prompt(result):
@@ -41,7 +44,7 @@ def predict_file(model, test_dataset, file_path):
     if getattr(test_dataset, "noise_reduction", False):
         waveform = test_dataset.apply_noise_reduction(waveform, sr)
 
-    waveform = normalize_waveform(waveform, test_dataset.dataset).to(torch.float32)
+    waveform = normalize_waveform(waveform, test_dataset.dataset, root=ROOT).to(torch.float32)
     if waveform.shape[1] / sr > 0.5:
         spectrogram = test_dataset.transform_long(waveform)
     else:
@@ -70,6 +73,9 @@ def process_sentences_with_model(data_root, model_root, model_name):
     elif model_type == "moat":
         config["img_size"] = 128
         config["model_configs"][model_type][model_params]["img_size"] = 128
+    elif model_type == "swintransformer":
+        config["image_size"] = 64
+        config["model_configs"][model_type][model_params]["image_size"] = 64
     special_keys = config.get("special_keys", False)
 
     checkpoint_file = os.path.join(checkpoint_path, os.listdir(checkpoint_path)[0])
@@ -83,6 +89,11 @@ def process_sentences_with_model(data_root, model_root, model_name):
         )
     elif model_type == "moat":
         model = MOAT(
+            num_classes=num_classes,
+            **config["model_configs"][model_name_in_config][model_params],
+        )
+    elif model_type == "swintransformer":
+        model = SwinTransformer(
             num_classes=num_classes,
             **config["model_configs"][model_name_in_config][model_params],
         )
