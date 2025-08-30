@@ -10,7 +10,7 @@ Important requirements:
 
 Example:
 Input: [ ['h', 'a', 'l', 'k', 'o'], ['w', 'o', 'r', 'l', 'e'] ]
-Expected output: ['h', 'e', 'l', 'l', 'o' ]
+Expected output: [ ['h', 'e', 'l', 'l', 'o' ], ['w', 'o', 'r', 'l', 'd'] ]
 Explanation: 'a' was mismatched with 'e', 'k' was mistaken with 'l' and 'e' was misclassified with 'd'
 
 Process following list of predictions: {input_data}
@@ -30,8 +30,8 @@ Important requirements:
 - If you think a key is mistyped, you may replace it in place with the correct one. However, you cannot delete it or add new ones.
 
 Example:
-Input: [ 'h', 'a', 'l', 'l', 'o', 'beautiful', 'w', 'o', 'r', 'l', 'e'] ]
-Expected output: ['caps', 'h', 'caps', 'e', 'l', 'l', 'o', 'space', 'b', 'e', 'a', 'u', 't', 'k', 'f', 'u', 'l', 'space', 'shift', 'w', 'o', 'r', 'l', 'e', 'shift', '1']
+Input: ['caps', 'h', 'caps', 'a', 'l', 'l', 'o', 'space', 'b', 'e', 'u', 't', 'k', 'f', 'u', 'l', 'space', 'shift', 'w', 'o', 'r', 'l', 'e', 'shift', '1']
+Expected output: ['caps', 'h', 'caps', 'e', 'l', 'l', 'o', 'space', 'b', 'e', 'a', 'u', 't', 'i', 'f', 'u', 'l', 'space', 'shift', 'w', 'o', 'r', 'l', 'e', 'shift', '1']
 Explanation: 'k' was mismatched with 'i' and 'e' was misclassified with 'd', two 'caps' keys make sense as they result in capitalized 'h' and the last keys create '!'
 
 Process the following list of predictions: {input_data}

@@ -122,58 +122,62 @@ def process_sentences_with_model(data_root, model_root, model_name):
     results = {}
 
     if special_keys:
-        for sentence, keypresses in TARGET_SENTENCES.items():
-            selected_paths = []
-            for key in keypresses:
-                candidates = []
-                candidates.extend(files_by_label.get(key, []))
-                if candidates:
-                    selected_paths.append(random.choice(candidates))
-
-            predictions = []
-            for file_path in selected_paths:
-                pred_idx = predict_file(model, test_dataset, file_path)
-                predictions.append(idx_to_class[pred_idx])
-
-            lev_dist = distance(keypresses, predictions)
-
-            results[sentence] = {
-                "keypresses": keypresses,
-                "predictions": predictions,
-                "levenshtein_distance": lev_dist,
-            }
-    else:
-        for sentence, words in TARGET_WORDS.items():
-            word_predictions = []
-            word_keypresses = []
-
-            for word_keys in words:
+        for i in range(3):
+            random.seed(i)
+            for sentence, keypresses in TARGET_SENTENCES.items():
                 selected_paths = []
-                for key in word_keys:
+                for key in keypresses:
                     candidates = []
                     candidates.extend(files_by_label.get(key, []))
                     if candidates:
                         selected_paths.append(random.choice(candidates))
 
-                preds = []
+                predictions = []
                 for file_path in selected_paths:
                     pred_idx = predict_file(model, test_dataset, file_path)
-                    preds.append(idx_to_class[pred_idx])
+                    predictions.append(idx_to_class[pred_idx])
 
-                word_predictions.append(preds)
-                word_keypresses.append(word_keys)
+                lev_dist = distance(keypresses, predictions)
 
-            flat_keys = [k for wk in word_keypresses for k in wk]
-            flat_preds = [p for wp in word_predictions for p in wp]
-            lev_dist = distance(flat_keys, flat_preds)
+                results[sentence+'_'+str(i)] = {
+                    "keypresses": keypresses,
+                    "predictions": predictions,
+                    "levenshtein_distance": lev_dist,
+                }
+    else:
+        for i in range(3):
+            random.seed(i)
+            for sentence, words in TARGET_WORDS.items():
+                word_predictions = []
+                word_keypresses = []
 
-            results[sentence] = {
-                "word_keypresses": word_keypresses,
-                "word_predictions": word_predictions,
-                "keypresses": flat_keys,
-                "predictions": word_predictions,
-                "levenshtein_distance": lev_dist,
-            }
+                for word_keys in words:
+                    selected_paths = []
+                    for key in word_keys:
+                        candidates = []
+                        candidates.extend(files_by_label.get(key, []))
+                        if candidates:
+                            selected_paths.append(random.choice(candidates))
+
+                    preds = []
+                    for file_path in selected_paths:
+                        pred_idx = predict_file(model, test_dataset, file_path)
+                        preds.append(idx_to_class[pred_idx])
+
+                    word_predictions.append(preds)
+                    word_keypresses.append(word_keys)
+
+                flat_keys = [k for wk in word_keypresses for k in wk]
+                flat_preds = [p for wp in word_predictions for p in wp]
+                lev_dist = distance(flat_keys, flat_preds)
+
+                results[sentence+'_'+str(i)] = {
+                    "word_keypresses": word_keypresses,
+                    "word_predictions": word_predictions,
+                    "keypresses": flat_keys,
+                    "predictions": word_predictions,
+                    "levenshtein_distance": lev_dist,
+                }
 
     return results
 
