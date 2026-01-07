@@ -24,7 +24,7 @@ from models.swin_transformer import SwinTransformer
 
 np.random.seed(42)
 
-ROOT = "/Users/juliaprzybytniowska/Documents/Master Degree/Master Thesis/KeystrokeDetection/"
+ROOT = os.getenv("ROOT")
 
 
 def get_prompt(result):

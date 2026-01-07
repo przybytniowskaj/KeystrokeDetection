@@ -50,11 +50,22 @@ def init_linear(m):
 def save_confusion_matrix(true_labels, predicted_labels, filename, classes):
     cm = confusion_matrix(true_labels, predicted_labels)
     disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=classes)
-    fig, ax = plt.subplots(figsize=(20, 20))
-    disp.plot(ax=ax, cmap="Blues")
-    ax.set_xticklabels(
-        classes, rotation=45, ha="right", fontsize=9
-    )  # Default fontsize is 10
+    fig, ax = plt.subplots(figsize=(18, 18))
+    disp.plot(cmap='Blues', ax=ax, colorbar=False)
+    for text in disp.text_.ravel():
+        text.set_fontsize(14)
+    plt.xticks(rotation=45, ha='right', fontsize=15)
+    plt.yticks(fontsize=15)
+    ax.set_xlabel("Predicted label", fontsize=17, labelpad=0)
+    ax.set_ylabel("True label", fontsize=17, labelpad=0)
+
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes("right", size="2%", pad=0.1)
+
+    fig.colorbar(disp.im_, cax=cax)
+    cax.tick_params(labelsize=14)
+
+    plt.tight_layout()
     plt.savefig(filename)
 
 
