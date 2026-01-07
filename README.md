@@ -26,9 +26,12 @@ KeystrokeDetection/
 │   ├── data_processing.ipynb       # Notebook for data preprocessing
 │   ├── evaluation.ipynb            # Notebook for evaluation and metrics
 │   ├── model_architectures.ipynb   # Notebook for testing different model architectures
+|   ├── evaluation_article.ipynb    # Notebook for article-specific evaluation
+|   ├── password_guessing.ipynb     # Notebook to determine models' performance on random texts
 ├── src/                            # Python scripts for training and evaluation
 │   ├── constants/                  # Folder for all static variables
 │   │   ├── evaluation.py           # LLM evaluation constants
+|   |   ├── evaluation_article.py   # LLM evaluation constants for article
 │   │   ├── loading.py              # Data loading constants
 │   │   └── segmentation.py         # Audio segmentation constants
 │   ├── models/                     # Folder for architecture definition
@@ -37,6 +40,7 @@ KeystrokeDetection/
 │   │   └── swin_transformer.py     # Swin Transformer definition
 │   ├── utils/                      # Folder with all function definitions
 │   │   ├── evaluation.py           # Script with functions for evaluation
+│   │   ├── evaluation_article.py   # Script with functions for article-evaluation
 │   │   ├── loading.py              # Script with functions for data loading
 │   │   ├── segmentation.py         # Script with functions for audio segmentation
 │   │   └── train_eval.py           # Script with functions for training loop
@@ -59,7 +63,7 @@ KeystrokeDetection/
 ### 1. **Setup Environment**
    - Clone the repository:
      ```bash
-     git clone https://github.com/your-username/KeystrokeDetection.git
+     git clone https://github.com/<USERNAME>/KeystrokeDetection.git
      cd KeystrokeDetection
      ```
    - Install dependencies (depending on your OS):
@@ -70,7 +74,7 @@ KeystrokeDetection/
      ```bash
      pip install -r requirements_mac.txt
      ```
-   - Create a .env file in the root directory and add your Gemini and Cloudfare API keys
+   - Create a .env file in the root directory and add your Gemini and Cloudfare API keys, and directory paths
 
 ### 2. **Data Processing**
    - Use the `notebooks/data_processing.ipynb` notebook to preprocess the raw data. This notebook includes steps for cleaning, feature extraction, and preparing the data for training.
@@ -99,10 +103,6 @@ The `notebooks/` folder contains Jupyter notebooks for various stages of the pip
 
 
 You can modify these scripts to customize the commands or add additional parameters.
-
----
-## Paper
-This work was described in [Paper](https://github.com/przybytniowskaj/KeystrokeDetectionDocument/blob/main/thesis-en.pdf).
 
 ---
 

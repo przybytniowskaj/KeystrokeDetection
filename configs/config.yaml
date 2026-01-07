@@ -208,7 +208,7 @@ max_no_improvement: 50
 transform_aug: true
 transform: false
 seed: 42
-interim_results: "/mnt/evafs/groups/zychowski-lab/jprzybytniowska/KeystrokeDetection/interim_results/"
+interim_results: <DIR>
 project_name: "master-thesis"
 special_keys: false
 partial_wd: false

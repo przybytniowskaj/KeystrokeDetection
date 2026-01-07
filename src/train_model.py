@@ -11,6 +11,10 @@ import hydra
 from omegaconf import DictConfig, OmegaConf
 from PIL import Image
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from utils.loading import get_all_dataloaders, DATASET_GROUPS
 from utils.train_eval import (
     MODELS,
@@ -38,8 +42,9 @@ SCHEDULERS = {
     "ReduceLROnPlateau": torch.optim.lr_scheduler.ReduceLROnPlateau,
 }
 
-ROOT_DIR = "/mnt/evafs/groups/zychowski-lab/jprzybytniowska/KeystrokeDetection"
-DATA_DIR = "/data/final"
+ROOT_DIR = os.getenv("ROOT_DIR")
+DATA_DIR = "/R-ASCA"
+WANDB_ENTITY = os.getenv("WANDB_ENTITY")
 
 torchaudio.set_audio_backend("soundfile")
 
@@ -114,7 +119,7 @@ def train(cfg: DictConfig):
     suffix = "_unmapped" if cfg.special_keys else ""
     run_name = f"{model_name}_{cfg.model_params}_{cfg.optimizer}_{cfg.scheduler}_lr_{cfg.lr}_{str_wd}_{cfg.weight_decay}_special_keys_{cfg.special_keys}_{cfg.dataset}_{cfg.batch_size}_in_lr_{cfg.init_linear}{suffix}"
     run = wandb.init(
-        entity="przybytniowskaj-warsaw-university-of-technology",
+        entity=WANDB_ENTITY,
         project=cfg.project_name,
         name=run_name,
         config=OmegaConf.to_container(cfg, resolve=True),

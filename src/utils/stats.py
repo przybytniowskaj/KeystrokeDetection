@@ -8,9 +8,9 @@ from constants.loading import DATASET_GROUPS, ALPHANUMERIC_KEYS, EXCLUDED_KEYS
 
 def load_waveform_stats(special_keys=False, root=None):
     path = (
-        "data/final/waveform_stats_all.csv"
+        "R-ASCA/waveform_stats_all.csv"
         if special_keys
-        else "data/final/waveform_stats_alnum.csv"
+        else "R-ASCA/waveform_stats_alnum.csv"
     )
     stats = {}
     if root:

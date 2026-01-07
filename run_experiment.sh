@@ -8,7 +8,7 @@
 #SBATCH --mem=80G
 #SBATCH --ntasks=1
 #SBATCH --mail-type=ALL
-#SBATCH --mail-user=julia.przybytniowska.stud@pw.edu.pl
+#SBATCH --mail-user=<MAIL>
 #SBATCH --job-name=diff_data_exp
 #SBATCH --output=exp_logs/initial_swin_smaller-%A_%a.log
 #SBATCH --array=0-15
@@ -18,7 +18,7 @@ cat $script_path
 
 source /etc/environment
 
-source /mnt/evafs/groups/ganzha_23/jprzybytniowska/miniconda3/etc/profile.d/conda.sh
+source <PATH>/miniconda3/etc/profile.d/conda.sh
 conda activate llm
 echo $CONDA_DEFAULT_ENV
 
